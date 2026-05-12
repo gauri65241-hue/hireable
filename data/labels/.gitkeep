@@ -1,0 +1,2 @@
+# This file ensures the labels directory structure is preserved in git
+# Actual label files will be ignored by .gitignore to protect sensitive data
