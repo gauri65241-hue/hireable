@@ -63,8 +63,9 @@ benchmark_results.json
 # Ignore content changes to data CSVs after initial empty commit
 # (use: git update-index --skip-worktree data/resumes.csv data/jobs.csv data/labels.csv)
 
-# Results — keep folder structure, exclude all content
-results/**/*
+# Results — keep folder structure, exclude all content files
+results/**
+!results/**/
 !results/**/.gitkeep
 
 # Node modules
