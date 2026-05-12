@@ -1,0 +1,90 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing and monitoring
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+wandb/
+monitoring.csv
+
+# IDE and system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+.cache/
+
+# Personal data — keep empty CSVs (headers only) but ignore benchmark output
+benchmark_results.json
+
+# Ignore content changes to data CSVs after initial empty commit
+# (use: git update-index --skip-worktree data/resumes.csv data/jobs.csv data/labels.csv)
+
+# Results — keep folder structure, exclude all content
+results/**/*
+!results/**/.gitkeep
+
+# Node modules
+node_modules/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+
+# Model files and artifacts
+*.pkl
+*.joblib
+*.model
+models/
+checkpoints/

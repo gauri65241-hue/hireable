@@ -1,0 +1,8 @@
+job_id,title,company,experience_required,skills_required,description
+job_001,Data Scientist,Acme Corp,3+,"Python, SQL, Machine Learning, Statistics","We are seeking a Data Scientist with strong analytical and problem-solving skills. You will work closely with product and engineering teams to deliver data-driven insights.
+
+Requirements:
+- 3+ years experience in data science or machine learning
+- Strong Python and SQL skills
+- Experience with statistical modelling and A/B testing
+- Excellent communication skills"

@@ -1,0 +1,626 @@
+{
+  "tech_and_data": {
+    "titles": [
+      "AI Engineer", "Machine Learning Engineer", "Data Scientist", "Software Engineer", 
+      "Java Developer", "Python Developer", "Data Engineer", "Cloud Architect", 
+      "DevOps Engineer", "CTO", "Chief Technology Officer", "VP of Engineering",
+      "Frontend Developer", "Backend Developer", "Full Stack Developer", "Database Administrator"
+    ],
+    "tools": {
+      "languages": [
+        "python", "sql", "bash", "r", "scala", "java", "c++", "javascript", "typescript", "go", "rust"
+      ],
+      "ml_dl_frameworks": [
+        "scikit-learn", "xgboost", "lightgbm", "catboost", "statsmodels",
+        "pytorch", "tensorflow", "keras", "jax", "fastai"
+      ],
+      "nlp_and_genai": [
+        "huggingface", "transformers", "langchain", "llamaindex", "spacy", "nltk",
+        "vllm", "ollama", "openai-api", "anthropic-api", "dspy", "autogen"
+      ],
+      "vector_databases": [
+        "faiss", "pinecone", "chromadb", "weaviate", "milvus", "qdrant", "pgvector"
+      ],
+      "data_engineering": [
+        "spark", "pyspark", "kafka", "flink", "dbt", "airflow", "prefect", "dagster",
+        "hadoop", "hive", "airbyte", "fivetran", "apache-iceberg"
+      ],
+      "databases_and_warehouses": [
+        "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "snowflake",
+        "redshift", "bigquery", "duckdb", "databricks"
+      ],
+      "cloud_platforms": [
+        "aws", "gcp", "azure", "sagemaker", "vertex-ai", "ec2", "s3", "lambda", "cloud-run"
+      ],
+      "mlops_and_deployment": [
+        "mlflow", "wandb", "kubeflow", "bentoml", "seldon", "triton", "torchserve",
+        "fastapi", "flask", "grpc", "ray-serve"
+      ],
+      "infrastructure_and_devops": [
+        "docker", "kubernetes", "k8s", "terraform", "ansible", "helm", "git",
+        "github-actions", "gitlab-ci", "jenkins", "linux"
+      ],
+      "monitoring_and_viz": [
+        "prometheus", "grafana", "datadog", "evidently", "tableau", "powerbi",
+        "looker", "matplotlib", "seaborn", "plotly", "streamlit"
+      ]
+    },
+    "concepts": {
+      "machine_learning": [
+        "supervised-learning", "unsupervised-learning", "reinforcement-learning",
+        "feature-engineering", "hyperparameter-tuning", "cross-validation",
+        "model-selection", "ensemble-methods", "imbalanced-learning"
+      ],
+      "deep_learning": [
+        "neural-networks", "cnn", "rnn", "lstm", "transformers", "transfer-learning",
+        "fine-tuning", "mixed-precision", "distributed-training"
+      ],
+      "generative_ai": [
+        "rag", "retrieval-augmented-generation", "prompt-engineering", "embeddings",
+        "semantic-search", "tokenization", "agentic-ai", "few-shot-learning", "guardrails"
+      ],
+      "statistics_and_experimentation": [
+        "hypothesis-testing", "a-b-testing", "bayesian-inference", "causal-inference",
+        "probability", "time-series-analysis", "regression", "experimental-design"
+      ],
+      "software_engineering": [
+        "oop", "object-oriented-programming", "system-design", "ci-cd", "microservices",
+        "unit-testing", "api-design", "version-control", "design-patterns", "refactoring"
+      ],
+      "data_management": [
+        "etl", "elt", "data-modeling", "data-warehousing", "stream-processing",
+        "batch-processing", "data-governance", "data-quality", "data-lineage"
+      ]
+    },
+    "domains": {
+      "core_ai_fields": [
+        "natural-language-processing", "nlp", "computer-vision", "cv", "speech-recognition",
+        "robotics", "multimodal-ai", "predictive-analytics"
+      ],
+      "business_applications": [
+        "recommendation-systems", "fraud-detection", "customer-segmentation",
+        "churn-prediction", "pricing-optimization", "demand-forecasting",
+        "search-and-ranking", "personalization", "anomaly-detection"
+      ]
+    },
+    "soft_skills": [
+      "communication", "stakeholder-management", "leadership", "problem-solving",
+      "adaptability", "teamwork", "collaboration", "critical-thinking", "time-management",
+      "cross-functional-collaboration", "storytelling", "mentorship", "decision-making",
+      "ownership", "prioritization"
+    ]
+  },
+
+  "culinary_and_kitchen": {
+    "titles": [
+      "Executive Chef", "Sous Chef", "Pastry Chef", "Head Baker", "Chef de Partie", 
+      "Line Cook", "Master Barista", "Head Roaster", "Food and Beverage Manager", 
+      "Culinary Director", "Private Chef", "Chocolatier"
+    ],
+    "tools": {
+      "hot_kitchen_equipment": [
+        "combi-oven", "salamander", "sous-vide-circulator", "induction-cooktop",
+        "deep-fryer", "plancha", "charbroiler", "tilt-skillet", "braising-pan"
+      ],
+      "prep_and_processing": [
+        "mandoline", "robot-coupe", "thermocirculator", "vacuum-sealer", 
+        "meat-grinder", "deli-slicer", "immersion-blender", "stand-mixer"
+      ],
+      "baking_and_pastry_tools": [
+        "deck-oven", "convection-oven", "proofing-cabinet", "dough-sheeter", 
+        "spiral-mixer", "banneton", "pastry-bag", "silpat", "blast-chiller"
+      ],
+      "barista_and_coffee_equipment": [
+        "commercial-espresso-machine", "burr-grinder", "puqpress", "milk-steamer", 
+        "v60", "chemex", "aeropress", "refractometer", "roaster"
+      ],
+      "kitchen_management_software": [
+        "toast-pos", "square-for-restaurants", "marketman", "xtrachef", 
+        "meez", "7shifts", "resy", "opentable", "inventory-trackers"
+      ]
+    },
+    "concepts": {
+      "culinary_techniques": [
+        "braising", "poaching", "sautéing", "grilling", "emulsification", 
+        "fermentation", "curing", "smoking", "molecular-gastronomy", "knife-skills"
+      ],
+      "baking_and_pastry_arts": [
+        "lamination", "crumb-structure", "hydration-ratios", "autolyse", 
+        "tempering-chocolate", "sugar-work", "viennoiserie", "sourdough-cultivation"
+      ],
+      "coffee_science": [
+        "extraction-yield", "dialing-in", "milk-texturing", "latte-art", 
+        "roast-profiling", "cupping", "water-chemistry", "brew-ratios"
+      ],
+      "kitchen_management": [
+        "recipe-costing", "yield-management", "menu-engineering", "inventory-control", 
+        "prep-lists", "station-organization", "mise-en-place", "expediting"
+      ],
+      "safety_and_compliance": [
+        "haccp", "servsafe", "cross-contamination-prevention", "allergen-management", 
+        "fifo", "temperature-control", "sanitation-protocols"
+      ]
+    },
+    "domains": {
+      "cuisines_and_styles": [
+        "french-classical", "modern-american", "pan-asian", "mediterranean", 
+        "plant-based", "farm-to-table", "haute-cuisine", "artisan-baking", "specialty-coffee"
+      ],
+      "venues_and_operations": [
+        "fine-dining", "casual-dining", "michelin-starred", "cloud-kitchen", 
+        "hotel-banquets", "cruise-ships", "independent-cafe", "industrial-bakery"
+      ]
+    },
+    "soft_skills": [
+      "working-under-pressure", "stamina", "attention-to-detail", "team-leadership", 
+      "multitasking", "creativity", "cleanliness", "discipline", "time-management", 
+      "adaptability", "conflict-resolution", "passion"
+    ]
+  },
+
+  "hr_and_people_ops": {
+    "titles": [
+      "Chief Human Resources Officer (CHRO)", "VP of People", "HR Director", 
+      "People Manager", "HR Business Partner (HRBP)", "Talent Acquisition Specialist", 
+      "Technical Recruiter", "Compensation and Benefits Manager", "L&D Manager"
+    ],
+    "tools": {
+      "ats_and_recruiting": [
+        "greenhouse", "lever", "workable", "ashby", "icims", "smartrecruiters", 
+        "linkedin-recruiter", "gem", "hirevue"
+      ],
+      "hris_and_hcm": [
+        "workday", "bamboohr", "successfactors", "rippling", "gusto", 
+        "adp-workforce-now", "oracle-hcm", "paylocity"
+      ],
+      "performance_and_engagement": [
+        "lattice", "culture-amp", "15five", "glint", "leapsome", 
+        "officevibe", "survey-monkey", "qualtrics"
+      ],
+      "learning_and_development": [
+        "cornerstone", "lessonly", "docebo", "linkedin-learning", "udemy-business", 
+        "articulate-360", "talentlms"
+      ],
+      "people_analytics": [
+        "visier", "tableau", "powerbi", "excel", "charthop", "orgvue"
+      ]
+    },
+    "concepts": {
+      "talent_acquisition": [
+        "sourcing-strategies", "employer-branding", "interview-design", 
+        "candidate-experience", "diversity-hiring", "offer-negotiation", "headhunting"
+      ],
+      "employee_experience": [
+        "onboarding", "offboarding", "retention-strategies", "employee-engagement", 
+        "culture-building", "wellness-programs", "recognition-frameworks"
+      ],
+      "performance_management": [
+        "okrs", "kpis", "360-degree-feedback", "continuous-performance-management", 
+        "succession-planning", "9-box-grid", "pip-management"
+      ],
+      "compensation_and_benefits": [
+        "salary-benchmarking", "equity-compensation", "benefits-administration", 
+        "variable-pay", "total-rewards-strategy", "pay-equity-analysis"
+      ],
+      "compliance_and_relations": [
+        "labor-laws", "eeoc-compliance", "gdpr", "conflict-resolution", 
+        "grievance-handling", "workplace-investigations", "union-relations"
+      ]
+    },
+    "domains": {
+      "business_contexts": [
+        "hyper-growth-startups", "enterprise-corporations", "remote-first-workforces", 
+        "global-distributed-teams", "mergers-and-acquisitions"
+      ],
+      "industry_specializations": [
+        "tech-recruiting", "healthcare-staffing", "retail-hr", "manufacturing-labor-relations"
+      ]
+    },
+    "soft_skills": [
+      "empathy", "confidentiality", "active-listening", "diplomacy", 
+      "strategic-thinking", "coaching", "negotiation", "emotional-intelligence", 
+      "conflict-resolution", "ethical-judgment", "persuasion"
+    ]
+  },
+
+  "executive_and_management": {
+    "titles": [
+      "Chief Executive Officer (CEO)", "Chief Operating Officer (COO)", 
+      "Chief Financial Officer (CFO)", "Chief Revenue Officer (CRO)", 
+      "Managing Director", "General Manager", "VP of Operations", "Country Manager"
+    ],
+    "tools": {
+      "enterprise_erp_and_bi": [
+        "sap", "oracle-netsuite", "microsoft-dynamics-365", "tableau", "powerbi", 
+        "looker", "domo", "snowflake"
+      ],
+      "board_and_governance": [
+        "diligent", "boardeffect", "nasdaq-boardvantage", "onboard", 
+        "docusign", "ironclad"
+      ],
+      "strategy_and_okr": [
+        "quantive", "workboard", "perdoo", "asana-goals", "monday-com", 
+        "notion", "confluence"
+      ],
+      "financial_and_planning": [
+        "anaplan", "adaptive-insights", "planful", "excel", "pitchbook", "capital-iq"
+      ]
+    },
+    "concepts": {
+      "corporate_strategy": [
+        "vision-and-mission-development", "go-to-market-strategy", "competitive-analysis", 
+        "business-model-innovation", "digital-transformation", "blue-ocean-strategy"
+      ],
+      "financial_leadership": [
+        "p-and-l-management", "capital-allocation", "fundraising", "budget-forecasting", 
+        "mergers-and-acquisitions", "m-and-a", "investor-relations", "cash-flow-optimization"
+      ],
+      "operational_excellence": [
+        "organizational-design", "change-management", "supply-chain-optimization", 
+        "risk-management", "scale-operations", "kpi-frameworks", "lean-management"
+      ],
+      "governance_and_compliance": [
+        "board-relations", "corporate-governance", "esg-strategy", "regulatory-compliance", 
+        "legal-oversight", "crisis-management"
+      ]
+    },
+    "domains": {
+      "company_stages": [
+        "seed-stage", "series-a-b", "pre-ipo", "public-company", "private-equity-backed", 
+        "family-owned-business", "turnaround-and-restructuring"
+      ],
+      "global_markets": [
+        "emerging-markets", "apac", "emea", "latam", "north-america", "cross-border-expansion"
+      ]
+    },
+    "soft_skills": [
+      "visionary-leadership", "executive-presence", "decision-making-under-ambiguity", 
+      "stakeholder-management", "public-speaking", "negotiation", "resilience", 
+      "delegation", "strategic-foresight", "influence", "relationship-building"
+    ]
+  },
+
+  "design_and_architecture": {
+    "titles": [
+      "UX/UI Designer", "Product Designer", "Principal Architect", 
+      "Creative Director", "Art Director", "Graphic Designer", "Interior Designer", 
+      "Motion Graphics Designer", "Service Designer", "Urban Planner"
+    ],
+    "tools": {
+      "ui_and_digital_design": [
+        "figma", "sketch", "adobe-xd", "framer", "webflow", "invision", "zeplin"
+      ],
+      "graphic_and_visual": [
+        "adobe-photoshop", "adobe-illustrator", "adobe-indesign", "affinity-designer", 
+        "procreate", "coreldraw"
+      ],
+      "architecture_and_3d": [
+        "autocad", "revit", "sketchup", "rhino", "3ds-max", "maya", "blender", 
+        "lumion", "v-ray", "cinema-4d"
+      ],
+      "motion_and_video": [
+        "adobe-after-effects", "adobe-premiere-pro", "final-cut-pro", "davinci-resolve", 
+        "lottie", "nuke"
+      ],
+      "research_and_whiteboarding": [
+        "miro", "figjam", "mural", "usertesting", "maze", "optimal-workshop", "hotjar", "dovetail"
+      ]
+    },
+    "concepts": {
+      "user_experience_ux": [
+        "user-research", "wireframing", "prototyping", "information-architecture", 
+        "journey-mapping", "usability-testing", "persona-development", "heuristic-evaluation"
+      ],
+      "user_interface_ui": [
+        "design-systems", "typography", "color-theory", "grid-systems", 
+        "responsive-design", "microinteractions", "accessibility-wcag", "visual-hierarchy"
+      ],
+      "architectural_design": [
+        "space-planning", "building-information-modeling", "bim", "site-analysis", 
+        "sustainable-design", "leed-certification", "structural-coordination", "building-codes"
+      ],
+      "branding_and_identity": [
+        "brand-strategy", "logo-design", "art-direction", "visual-storytelling", 
+        "packaging-design", "campaign-concepting"
+      ]
+    },
+    "domains": {
+      "digital_products": [
+        "mobile-apps", "saas-platforms", "ecommerce-websites", "ar-vr-interfaces", "wearables"
+      ],
+      "built_environment": [
+        "residential-architecture", "commercial-real-estate", "urban-infrastructure", 
+        "hospitality-interiors", "exhibition-design"
+      ]
+    },
+    "soft_skills": [
+      "creativity", "empathy", "design-thinking", "attention-to-detail", 
+      "constructive-criticism", "presentation-skills", "collaboration", 
+      "problem-solving", "adaptability", "storytelling", "client-management"
+    ]
+  },
+
+  "sales_and_marketing": {
+    "titles": [
+      "Chief Marketing Officer (CMO)", "Chief Revenue Officer (CRO)", "VP of Sales", 
+      "Sales Director", "Account Executive (AE)", "Sales Development Rep (SDR)", 
+      "Customer Success Manager", "Growth Marketer", "Product Marketing Manager", 
+      "SEO Specialist", "Content Strategist", "Performance Marketing Manager"
+    ],
+    "tools": {
+      "crm_and_pipeline": [
+        "salesforce", "hubspot", "zoho-crm", "pipedrive", "microsoft-dynamics-sales", 
+        "close-crm", "freshsales"
+      ],
+      "prospecting_and_enablement": [
+        "zoominfo", "apollo-io", "linkedin-sales-navigator", "outreach", "salesloft", 
+        "gong", "chorus", "seismic", "highspot"
+      ],
+      "marketing_automation_and_email": [
+        "marketo", "pardot", "klaviyo", "mailchimp", "activecampaign", "braze", "customer-io"
+      ],
+      "ad_tech_and_performance": [
+        "google-ads", "meta-ads-manager", "linkedin-campaign-manager", "tiktok-ads", 
+        "dv360", "the-trade-desk", "appsflyer"
+      ],
+      "seo_and_analytics": [
+        "ahrefs", "semrush", "moz", "google-analytics-4", "ga4", "google-search-console", 
+        "mixpanel", "amplitude", "optimizely"
+      ]
+    },
+    "concepts": {
+      "sales_execution": [
+        "b2b-sales", "meddic", "bant", "challenger-sales", "inbound-sales", 
+        "outbound-prospecting", "objection-handling", "contract-negotiation", "pipeline-management"
+      ],
+      "growth_and_performance": [
+        "cac-ltv-ratio", "conversion-rate-optimization", "cro", "a-b-testing", 
+        "demand-generation", "lead-scoring", "funnel-optimization", "retargeting"
+      ],
+      "brand_and_content": [
+        "brand-positioning", "go-to-market-strategy", "gtm", "storytelling", 
+        "copywriting", "content-syndication", "social-proof", "public-relations"
+      ],
+      "customer_success": [
+        "churn-reduction", "net-revenue-retention", "nrr", "upselling", 
+        "cross-selling", "onboarding-flows", "qbrs", "health-scoring"
+      ]
+    },
+    "domains": {
+      "sales_motions": [
+        "enterprise-sales", "smb-sales", "plg", "product-led-growth", "channel-sales", "direct-to-consumer", "d2c"
+      ],
+      "industry_verticals": [
+        "saas", "ecommerce", "fmcg", "real-estate", "pharmaceutical-sales", "ad-tech", "fintech"
+      ]
+    },
+    "soft_skills": [
+      "persuasion", "resilience", "active-listening", "empathy", "storytelling", 
+      "negotiation", "relationship-building", "adaptability", "objection-handling", 
+      "time-management", "confidence", "emotional-intelligence"
+    ]
+  },
+
+  "finance_and_accounting": {
+    "titles": [
+      "Chief Financial Officer (CFO)", "VP of Finance", "Corporate Controller", 
+      "Director of FP&A", "Investment Banker", "Private Equity Associate", 
+      "Senior Accountant", "Auditor", "Treasury Manager", "Tax Manager"
+    ],
+    "tools": {
+      "erp_and_accounting": [
+        "netsuite", "sap-fico", "oracle-erp-cloud", "quickbooks-online", 
+        "xero", "sage-intacct", "workday-financials"
+      ],
+      "fpa_and_modeling": [
+        "anaplan", "adaptive-insights", "planful", "vena-solutions", "excel", 
+        "google-sheets", "powerbi", "tableau"
+      ],
+      "tax_and_audit": [
+        "thomson-reuters-onesource", "caseware", "acl-analytics", "idea-data-analysis", 
+        "avalara", "turbotax-corporate"
+      ],
+      "market_data_and_research": [
+        "bloomberg-terminal", "capital-iq", "pitchbook", "factset", "morningstar-direct"
+      ]
+    },
+    "concepts": {
+      "financial_accounting": [
+        "gaap", "ifrs", "month-end-close", "reconciliation", "accounts-payable", 
+        "accounts-receivable", "payroll-processing", "fixed-asset-management"
+      ],
+      "corporate_finance": [
+        "financial-modeling", "3-statement-modeling", "dcf-valuation", "lbo-modeling", 
+        "variance-analysis", "capital-budgeting", "wacc"
+      ],
+      "audit_and_compliance": [
+        "sox-compliance", "internal-controls", "risk-assessment", "external-audit", 
+        "transfer-pricing", "corporate-taxation", "sec-reporting"
+      ],
+      "treasury_and_m_a": [
+        "cash-flow-forecasting", "liquidity-management", "working-capital-optimization", 
+        "mergers-and-acquisitions", "due-diligence", "debt-financing"
+      ]
+    },
+    "domains": {
+      "financial_sectors": [
+        "corporate-finance", "investment-banking", "private-equity", "venture-capital", 
+        "public-accounting", "big-4", "wealth-management", "hedge-funds"
+      ],
+      "company_types": [
+        "publicly-traded", "pre-ipo", "series-funded-startups", "non-profit-finance"
+      ]
+    },
+    "soft_skills": [
+      "analytical-rigor", "attention-to-detail", "integrity", "confidentiality", 
+      "critical-thinking", "commercial-awareness", "presentation-skills", 
+      "stakeholder-management", "stress-tolerance", "precision"
+    ]
+  },
+
+  "healthcare_and_medical": {
+    "titles": [
+      "Chief Medical Officer (CMO)", "Attending Physician", "Surgeon", 
+      "Registered Nurse (RN)", "Nurse Practitioner (NP)", "Pharmacist", 
+      "Healthcare Administrator", "Clinical Trial Manager", "Physical Therapist", "Medical Coder"
+    ],
+    "tools": {
+      "ehr_and_emr_systems": [
+        "epic", "cerner", "athenahealth", "meditech", "allscripts", "eclinicalworks"
+      ],
+      "telehealth_and_imaging": [
+        "teladoc", "amwell", "doxy-me", "pacs", "dicom", "epic-haiku"
+      ],
+      "clinical_and_lab": [
+        "lis-laboratory-information-systems", "lims", "vitals-monitors", "infusion-pumps", 
+        "pyxis-medication-dispensing", "robotic-surgery-systems"
+      ],
+      "billing_and_coding": [
+        "icd-10", "cpt-coding", "hcfa-1500", "kareo", "waystar", "navicure"
+      ]
+    },
+    "concepts": {
+      "clinical_care": [
+        "patient-assessment", "triage", "differential-diagnosis", "pharmacology", 
+        "wound-care", "infection-control", "vital-signs-monitoring", "surgical-assistance"
+      ],
+      "healthcare_operations": [
+        "care-coordination", "patient-flow-management", "capacity-planning", 
+        "supply-chain-management", "revenue-cycle-management", "rcm"
+      ],
+      "compliance_and_ethics": [
+        "hipaa", "phi-protection", "informed-consent", "medical-ethics", 
+        "osha-standards", "joint-commission-standards"
+      ],
+      "research_and_public_health": [
+        "clinical-trials", "epidemiology", "biostatistics", "preventive-medicine", 
+        "evidence-based-practice", "pharmacovigilance"
+      ]
+    },
+    "domains": {
+      "care_settings": [
+        "intensive-care-unit", "icu", "emergency-department", "outpatient-clinics", 
+        "surgical-theaters", "home-healthcare", "hospice"
+      ],
+      "specialties": [
+        "cardiology", "oncology", "pediatrics", "psychiatry", "orthopedics", "neurology"
+      ]
+    },
+    "soft_skills": [
+      "compassion", "empathy", "resilience-under-pressure", "crisis-management", 
+      "active-listening", "critical-decision-making", "teamwork", "cultural-competence", 
+      "bedside-manner", "stamina"
+    ]
+  },
+
+  "supply_chain_and_logistics": {
+    "titles": [
+      "VP of Supply Chain", "Logistics Manager", "Procurement Specialist", 
+      "Demand Planner", "Fleet Manager", "Warehouse Supervisor", 
+      "Customs Broker", "Inventory Controller", "Sourcing Manager"
+    ],
+    "tools": {
+      "supply_chain_erp": [
+        "sap-scm", "oracle-scm-cloud", "blue-yonder", "kinaxis-rapidresponse", 
+        "infor-scm", "o9-solutions"
+      ],
+      "warehouse_and_transport": [
+        "manhattan-associates-wms", "fishbowl-inventory", "mercurygate-tms", 
+        "samsara", "geotab", "keep-truckin"
+      ],
+      "procurement_and_sourcing": [
+        "coupa", "ariba", "jaggaer", "zycus", "procure-to-pay", "p2p-systems"
+      ],
+      "data_and_rfid": [
+        "rfid-scanners", "barcode-systems", "edi-electronic-data-interchange", 
+        "excel", "powerbi", "tableau"
+      ]
+    },
+    "concepts": {
+      "planning_and_inventory": [
+        "demand-forecasting", "s-and-op", "jit-inventory", "safety-stock-calculation", 
+        "eoq", "abc-analysis", "bullwhip-effect"
+      ],
+      "procurement_and_vendor": [
+        "strategic-sourcing", "rfp-rfq-management", "vendor-negotiation", 
+        "contract-management", "supplier-relationship-management", "spend-analysis"
+      ],
+      "logistics_and_fulfillment": [
+        "freight-forwarding", "last-mile-delivery", "route-optimization", 
+        "reverse-logistics", "cross-docking", "cold-chain-management"
+      ],
+      "optimization_and_compliance": [
+        "lean-six-sigma", "continuous-improvement", "incoterms", "customs-clearance", 
+        "tariff-management", "esg-supply-chain"
+      ]
+    },
+    "domains": {
+      "industry_applications": [
+        "fmcg-supply-chain", "ecommerce-fulfillment", "automotive-manufacturing", 
+        "pharmaceutical-cold-chain", "retail-distribution", "third-party-logistics", "3pl"
+      ],
+      "transport_modes": [
+        "ocean-freight", "air-freight", "rail-transport", "over-the-road-trucking"
+      ]
+    },
+    "soft_skills": [
+      "problem-solving", "negotiation", "relationship-building", "analytical-thinking", 
+      "crisis-management", "adaptability", "cross-cultural-communication", 
+      "process-orientation", "time-management"
+    ]
+  },
+
+  "legal_and_compliance": {
+    "titles": [
+      "General Counsel", "Chief Compliance Officer", "Corporate Counsel", 
+      "Paralegal", "IP Attorney", "Litigator", "Contract Administrator", 
+      "Data Privacy Officer (DPO)", "Legal Operations Manager"
+    ],
+    "tools": {
+      "contract_lifecycle_clm": [
+        "ironclad", "docusign-clm", "concord", "icertis", "agiloft", "linksquares"
+      ],
+      "ediscovery_and_research": [
+        "relativity", "logikcull", "everlaw", "westlaw", "lexisnexis", "practical-law"
+      ],
+      "practice_management": [
+        "clio", "mycase", "smokeball", "leap", "simplelegal"
+      ],
+      "compliance_and_risk": [
+        "onetrust", "trustarc", "navex-global", "convercent", "workiva"
+      ]
+    },
+    "concepts": {
+      "corporate_and_commercial": [
+        "contract-drafting", "m-and-a-due-diligence", "term-sheets", "joint-ventures", 
+        "corporate-restructuring", "employment-law", "non-compete-agreements"
+      ],
+      "intellectual_property": [
+        "patent-prosecution", "trademark-registration", "copyright-law", 
+        "trade-secrets", "ip-licensing", "infringement-analysis"
+      ],
+      "compliance_and_privacy": [
+        "gdpr", "ccpa", "cpra", "kyc", "aml", "fcpa", "anti-bribery", 
+        "data-mapping", "risk-assessment"
+      ],
+      "litigation_and_disputes": [
+        "civil-procedure", "depositions", "arbitration", "mediation", 
+        "settlement-negotiation", "appellate-practice"
+      ]
+    },
+    "domains": {
+      "practice_settings": [
+        "in-house-counsel", "big-law-firms", "boutique-law-firms", "government-agencies", 
+        "ngos", "public-defenders-office"
+      ],
+      "legal_specialties": [
+        "corporate-law", "tech-and-privacy-law", "real-estate-law", "tax-law", "family-law"
+      ]
+    },
+    "soft_skills": [
+      "extreme-attention-to-detail", "analytical-reading", "persuasive-writing", 
+      "negotiation", "ethical-judgment", "discretion", "logical-reasoning", 
+      "conflict-resolution", "public-speaking", "stress-management"
+    ]
+  }
+}

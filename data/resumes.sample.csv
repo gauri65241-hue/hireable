@@ -1,0 +1,16 @@
+resume_id,name,title,experience_years,skills,text
+resume_001,Jane Doe,Machine Learning Engineer,4,"Python, LLMs, RAG, LangChain, Docker","JANE DOE
+ML ENGINEER
+
+ABOUT ME
+Results-oriented ML Engineer with 4 years experience building LLM and RAG systems.
+
+EXPERIENCE
+
+Machine Learning Engineer | 2021 - 2025
+Acme Corp
+Built production RAG pipelines. Developed custom evaluation metrics.
+
+EDUCATION
+BSc Computer Science | 2017 - 2021
+State University"
