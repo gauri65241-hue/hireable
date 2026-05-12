@@ -1,179 +1,114 @@
 # LinkedIn Agent Assistant
 
-Resume-to-Job fit scorer. Week 2 priority project.
+LLM-as-judge pipeline that scores resume-job fit across 5 dimensions, generates a tailored resume, and produces role-specific interview prep — all running locally via Ollama.
 
 ## What it does
 
-Scores how well a resume matches a job description using 3 signals:
-- **TF-IDF (40%)** — text similarity between resume and JD
-- **Skills (40%)** — Jaccard overlap via `skills_taxonomy.json`
-- **Experience (20%)** — stub (Week 4 replaces with LLM extraction)
+Runs a resume and job description through 5 specialised LLM judges, each scoring a different dimension:
 
-Prints final score, component breakdown, and missing skills list.
+| Judge | Weight | What it evaluates |
+|-------|--------|-------------------|
+| Skills | 25% | Required vs present skills against a taxonomy |
+| Experience | 25% | Relevance and depth of past work |
+| Seniority | 20% | Level match (junior/mid/senior) |
+| Relevancy | 15% | Domain and industry alignment |
+| Impact | 15% | Quantified results and business outcomes |
+
+After scoring, a **Coach judge** produces honest improvement recommendations — rewrites of existing bullets (`bullet_rewrite`), removals of irrelevant content (`deletion`), and flagged genuine gaps (`gap_warning`). No fabricated metrics, no invented experience.
+
+From any scored result you can generate:
+- **Tailored resume** — applies coach rewrites to the original, cached to `results/tailored_resumes/`
+- **Interview prep** — role-specific questions with model answers for each real gap, cached to `results/interview_prep/`
+
+## Stack
+
+- **Backend**: FastAPI + Uvicorn
+- **LLM**: Ollama (local) — benchmarked across multiple models, `deepseek-r1:14b` selected as best judge
+- **Frontend**: Single-file dashboard (`dashboard.html`)
+- **Data**: CSV-based resume and job store
 
 ## Setup
 
 ```bash
-conda activate ai-engineer
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate linkedin-agent-assistant
+
+# Or pip:
+pip install -r requirements_api.txt
+
 cp .env.example .env
 ```
 
-## Usage
+Requires [Ollama](https://ollama.com) running locally with at least one model pulled:
 
 ```bash
-# Score resume against raw job text
-python linkedin_cli_v1.py score --resume-id 1 --job-text "Senior NLP Engineer Python LangChain RAG..."
-
-# Score resume against a job in jobs.csv
-python linkedin_cli_v1.py score --resume-id 1 --job-id 16
-
-# Run spec test cases
-python linkedin_cli_v1.py test
+ollama pull deepseek-r1:14b
+ollama serve
 ```
 
-## Example output
+## Run
 
-```
-───────────────────────────────────────────────────────
-  Resume : Gaurica P. — AI/MLOps Engineer - RAG & LLM Evaluation
-  Job    : job_id=16 (NLP Engineer @ LegalTech P)
-───────────────────────────────────────────────────────
-  FINAL SCORE    : 0.7812  (78.1%)
-  TF-IDF (40%)   : 0.6234
-  Skills (40%)   : 0.8900
-  Experience(20%): 0.8000  [stub]
-───────────────────────────────────────────────────────
-  Missing skills : faiss
-  Latency        : 3.2 ms
-───────────────────────────────────────────────────────
+```bash
+uvicorn linkedin_api:app --reload
 ```
 
-## Data
+Open `dashboard.html` in a browser. Add your resume and a job description, then run the pipeline.
+
+## Data files
+
+Add your own data — files are gitignored after the initial empty commit:
 
 | File | Description |
 |------|-------------|
-| `data/resumes.csv` | 5 resumes (resume_id 1–5) |
-| `data/jobs.csv` | 25 job descriptions (job_id 1–25) |
-| `data/labels.csv` | 100 (resume, job) pairs — 60 fits, 40 non-fits, 20 golden |
-| `data/skills_taxonomy.json` | 17 skill categories → canonical skill tokens |
+| `data/resumes.csv` | Resumes — see `resumes.sample.csv` for format |
+| `data/jobs.csv` | Job descriptions — see `jobs.sample.csv` for format |
+| `data/labels.csv` | Optional human labels for evaluation |
+| `data/skills_taxonomy.json` | 10 skill domains → canonical tokens used by the skills judge |
 
-## Tests
+## Results structure
 
-```bash
-pytest tests/ -v   # 19 tests
+All outputs are saved locally and never committed:
+
+```
+results/
+├── pipeline/          # Full judge pipeline output per run
+├── skills_judge/      # Individual judge results
+├── experience_judge/
+├── seniority_judge/
+├── relevancy_judge/
+├── impact_judge/
+├── coach_judge/
+├── tailored_resumes/  # Generated tailored resumes (.txt)
+├── interview_prep/    # Generated interview prep (.json)
+└── summary/           # Result summaries
 ```
 
-## Evaluation
+## Model benchmarking
 
-The project now has three eval tracks in `eval_framework.py`:
-
-| Track | Command | What it measures |
-|-------|---------|------------------|
-| Scoring | `python eval_framework.py --track scoring` | Precision, recall, F1, AUC, confusion matrix, and best score threshold against `labels.csv` |
-| Classifier | `python eval_framework.py --track classifier` | Cross-validated Logistic Regression on `[tfidf_score, skills_score, experience_score]` and feature importance |
-| Analysis | `python eval_framework.py --track analysis --sample 5` | LLM fit-label accuracy, JSON validity, required field coverage, groundedness, calibration, actionability, completeness, honesty, hallucinations, and critical misses |
-
-Run all non-LLM and LLM evals:
+Run `benchmark_models.py` to evaluate which local model performs best as a judge on your hardware:
 
 ```bash
-python eval_framework.py --track all
+python benchmark_models.py
 ```
 
-LLM evals require an API key:
-
-```bash
-export OPENROUTER_API_KEY="your_key_here"
-export OPENROUTER_BASE_URL="https://openrouter.ai/api"
-export OPENROUTER_MODEL="openrouter/free"
-python eval_framework.py --track analysis --sample 5
-```
-
-Generated reports are written to `eval_results/`.
-
-What should be evaluated:
-- **Numeric ranking quality**: do good resume/JD pairs score above bad pairs?
-- **Threshold quality**: what score cutoff gives the best F1 for "fit" vs "not fit"?
-- **Skill extraction quality**: are matched and missing skills correct?
-- **Seniority calibration**: does the system penalize junior/senior mismatches?
-- **LLM output reliability**: does the analysis return valid JSON with all required fields?
-- **Groundedness**: does every strength/gap cite evidence from the resume/JD?
-- **Hallucination rate**: does the LLM invent experience not present in the resume?
-- **Actionability**: are recommendations specific enough to edit the resume?
-- **Honesty/calibration**: does the recommendation match the human label and computed score?
-- **Latency and cost**: how long and how expensive is analysis per pair?
+Results written to `benchmark_results.json`. The pipeline automatically uses the top-ranked model.
 
 ## Project structure
 
 ```
 linkedin-agent-assistant/
-├── linkedin_cli_v1.py      # main CLI
+├── linkedin_api.py         # FastAPI backend — all endpoints
+├── specialized_judges.py   # Judge prompts and parsing logic
+├── dashboard.html          # Frontend
+├── benchmark_models.py     # Model selection benchmark
+├── chunker.py              # Text chunking utilities
 ├── data/
 │   ├── resumes.csv
 │   ├── jobs.csv
 │   ├── labels.csv
 │   └── skills_taxonomy.json
 ├── tests/
-│   ├── conftest.py
-│   └── test_linkedin_cli.py
-├── requirements.txt
-├── .env.example
-└── .gitignore
+├── requirements_api.txt
+├── environment.yml
+└── .env.example
 ```
-
-## Week 3: FastAPI REST API
-
-### New Endpoints
-- **POST /match_job** - Score resume against job description
-- **POST /match_job_by_id** - Score resume against job from database
-- **GET /health** - Health check
-- **GET /resumes** - List available resumes
-- **GET /jobs** - List available jobs
-- **GET /stats** - Dataset statistics
-
-### API Usage
-```bash
-# Install API dependencies
-pip install -r requirements_api.txt
-
-# Start API server
-python linkedin_api.py
-# or: uvicorn linkedin_api:app --reload --port 8001
-
-# Score resume against job text
-curl -X POST "http://localhost:8001/match_job" \
-  -H "Content-Type: application/json" \
-  -d '{"resume_id": 1, "job_description": "Senior ML Engineer Python..."}'
-
-# Score resume against job from database
-curl -X POST "http://localhost:8001/match_job_by_id" \
-  -H "Content-Type: application/json" \
-  -d '{"resume_id": 1, "job_id": 16}'
-
-# Health check
-curl http://localhost:8001/health
-```
-
-### API Response Example
-```json
-{
-  "final_score": 0.7812,
-  "tfidf_score": 0.6234,
-  "skills_score": 0.8900,
-  "experience_score": 0.8,
-  "missing_skills": ["faiss"],
-  "latency_ms": 3.2,
-  "resume_id": 1,
-  "job_description": "Senior ML Engineer..."
-}
-```
-
-## Roadmap
-
-| Week | Feature |
-|------|---------|
-| 2 | TF-IDF + skills scoring (CLI) |
-| 3 | FastAPI REST API conversion ✅ |
-| 4 | LLM-based experience extraction |
-| 6 | Fine-tuned classifier on labels.csv |
-| 8 | Full agent with LinkedIn API |
