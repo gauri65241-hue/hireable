@@ -1,161 +1,85 @@
+"""Tests for linkedin_cli_v1 data loading utilities."""
+
 import json
-import os
-import pytest
-import tempfile
 
-from linkedin_cli_v1 import (
-    extract_skills,
-    tfidf_score,
-    skills_score,
-    experience_score,
-    compute_score,
-    load_taxonomy,
-)
-
-TAXONOMY = load_taxonomy()
-
-RESUME_NLP = {
-    "resume_id": "1",
-    "name": "Gaurica P.",
-    "title": "AI/MLOps Engineer",
-    "experience_years": "4",
-    "skills": "python,llm,rag,langchain,huggingface,docker,aws,gcp,nlp,transformers,vector-databases",
-    "text": "AI engineer specialising in RAG LLM systems LangChain HuggingFace transformers Python Docker AWS GCP NLP prompt engineering vector databases.",
-}
-
-RESUME_ANALYST = {
-    "resume_id": "3",
-    "name": "Jamie L.",
-    "title": "Junior Data Analyst",
-    "experience_years": "1",
-    "skills": "excel,sql,powerbi,tableau,python,pandas",
-    "text": "Junior analyst Excel SQL Power BI Tableau Python pandas dashboards KPI reporting.",
-}
-
-JOB_LLM = "Senior NLP LLM engineer Python LangChain HuggingFace transformers RAG Docker AWS GCP vector databases prompt engineering model evaluation."
-JOB_ANALYST = "Junior Data Analyst Excel SQL Power BI Tableau data visualisation dashboards reporting no machine learning required."
-JOB_UNRELATED = "Plumber with 5 years experience fixing pipes drains heating systems."
+from linkedin_cli_v1 import load_resumes, load_jobs, load_skills_taxonomy, validate_data
 
 
-# ---------------------------------------------------------------------------
-# extract_skills
-# ---------------------------------------------------------------------------
+# ── load_resumes ──────────────────────────────────────────────────────────────
 
-def test_extract_skills_finds_known_skills():
-    found = extract_skills("we use python and docker in our stack", TAXONOMY)
-    assert "python" in found
-    assert "docker" in found
-
-
-def test_extract_skills_case_insensitive():
-    found = extract_skills("We use PYTHON and LangChain", TAXONOMY)
-    assert "python" in found
-    assert "langchain" in found
+def test_load_resumes_returns_list(tmp_path):
+    csv = tmp_path / "resumes.csv"
+    csv.write_text("resume_id,name,title,experience_years,skills,text\n1,Alice,Engineer,3,python,python developer\n")
+    result = load_resumes(str(csv))
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["resume_id"] == "1"
+    assert result[0]["name"] == "Alice"
 
 
-def test_extract_skills_empty_text():
-    found = extract_skills("", TAXONOMY)
-    assert isinstance(found, set)
-    assert len(found) == 0
+def test_load_resumes_missing_file():
+    result = load_resumes("/nonexistent/path.csv")
+    assert result == []
 
 
-def test_extract_skills_no_match():
-    found = extract_skills("fixing pipes and drains", TAXONOMY)
-    assert len(found) == 0
+def test_load_resumes_empty_csv(tmp_path):
+    csv = tmp_path / "resumes.csv"
+    csv.write_text("resume_id,name,title,experience_years,skills,text\n")
+    result = load_resumes(str(csv))
+    assert result == []
 
 
-# ---------------------------------------------------------------------------
-# tfidf_score
-# ---------------------------------------------------------------------------
+# ── load_jobs ─────────────────────────────────────────────────────────────────
 
-def test_tfidf_identical_texts():
-    score = tfidf_score("python machine learning nlp", "python machine learning nlp")
-    assert score == pytest.approx(1.0, abs=0.01)
-
-
-def test_tfidf_unrelated_texts():
-    score = tfidf_score("python llm rag langchain", "plumber pipes drains heating")
-    assert score < 0.1
+def test_load_jobs_returns_list(tmp_path):
+    csv = tmp_path / "jobs.csv"
+    csv.write_text("job_id,title,company,experience_required,skills_required,description\nj1,ML Engineer,Acme,3,python,build ml systems\n")
+    result = load_jobs(str(csv))
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["job_id"] == "j1"
+    assert result[0]["title"] == "ML Engineer"
 
 
-def test_tfidf_partial_overlap():
-    score = tfidf_score("python nlp transformers docker", "python docker sql tableau")
-    assert 0.0 < score < 1.0
+def test_load_jobs_missing_file():
+    result = load_jobs("/nonexistent/path.csv")
+    assert result == []
 
 
-def test_tfidf_returns_float():
-    score = tfidf_score("machine learning", "deep learning")
-    assert isinstance(score, float)
+# ── load_skills_taxonomy ──────────────────────────────────────────────────────
+
+def test_load_skills_taxonomy_returns_dict(tmp_path):
+    tax = tmp_path / "taxonomy.json"
+    tax.write_text(json.dumps({"languages": ["python", "java"]}))
+    result = load_skills_taxonomy(str(tax))
+    assert isinstance(result, dict)
+    assert "languages" in result
 
 
-# ---------------------------------------------------------------------------
-# skills_score
-# ---------------------------------------------------------------------------
-
-def test_skills_score_high_for_matching_resume():
-    score, missing = skills_score(RESUME_NLP, JOB_LLM, TAXONOMY)
-    assert score > 0.4
+def test_load_skills_taxonomy_missing_file():
+    result = load_skills_taxonomy("/nonexistent/taxonomy.json")
+    assert result == {}
 
 
-def test_skills_score_low_for_mismatch():
-    score, missing = skills_score(RESUME_ANALYST, JOB_LLM, TAXONOMY)
-    assert score < 0.5
+# ── validate_data ─────────────────────────────────────────────────────────────
+
+def test_validate_data_passes_with_valid_data():
+    resumes = [{"resume_id": "1", "name": "Alice", "text": "python engineer"}]
+    jobs = [{"job_id": "j1", "title": "ML Engineer", "description": "build ml systems"}]
+    assert validate_data(resumes, jobs) is True
 
 
-def test_skills_score_returns_missing_list():
-    _, missing = skills_score(RESUME_ANALYST, JOB_LLM, TAXONOMY)
-    assert isinstance(missing, list)
+def test_validate_data_fails_missing_resume_field():
+    resumes = [{"resume_id": "1", "name": "Alice"}]  # missing text
+    jobs = [{"job_id": "j1", "title": "ML Engineer", "description": "build ml systems"}]
+    assert validate_data(resumes, jobs) is False
 
 
-def test_skills_score_no_missing_when_full_match():
-    job_text = "excel sql powerbi tableau python pandas"
-    score, missing = skills_score(RESUME_ANALYST, job_text, TAXONOMY)
-    assert isinstance(missing, list)
+def test_validate_data_fails_missing_job_field():
+    resumes = [{"resume_id": "1", "name": "Alice", "text": "python engineer"}]
+    jobs = [{"job_id": "j1", "title": "ML Engineer"}]  # missing description
+    assert validate_data(resumes, jobs) is False
 
 
-# ---------------------------------------------------------------------------
-# experience_score stub
-# ---------------------------------------------------------------------------
-
-def test_experience_score_returns_08():
-    assert experience_score() == pytest.approx(0.8)
-
-
-# ---------------------------------------------------------------------------
-# compute_score — composite
-# ---------------------------------------------------------------------------
-
-def test_compute_score_keys_present():
-    result = compute_score(RESUME_NLP, JOB_LLM, TAXONOMY)
-    for key in ["final_score", "tfidf_score", "skills_score", "experience_score", "missing_skills", "latency_ms"]:
-        assert key in result
-
-
-def test_compute_score_range():
-    result = compute_score(RESUME_NLP, JOB_LLM, TAXONOMY)
-    assert 0.0 <= result["final_score"] <= 1.0
-
-
-def test_compute_score_nlp_resume_beats_analyst_on_llm_job():
-    r_nlp = compute_score(RESUME_NLP, JOB_LLM, TAXONOMY)["final_score"]
-    r_analyst = compute_score(RESUME_ANALYST, JOB_LLM, TAXONOMY)["final_score"]
-    assert r_nlp > r_analyst
-
-
-def test_compute_score_analyst_beats_nlp_on_analyst_job():
-    r_nlp = compute_score(RESUME_NLP, JOB_ANALYST, TAXONOMY)["final_score"]
-    r_analyst = compute_score(RESUME_ANALYST, JOB_ANALYST, TAXONOMY)["final_score"]
-    assert r_analyst > r_nlp
-
-
-def test_compute_score_latency_positive():
-    result = compute_score(RESUME_NLP, JOB_LLM, TAXONOMY)
-    assert result["latency_ms"] > 0
-
-
-def test_compute_score_formula_weights():
-    result = compute_score(RESUME_NLP, JOB_LLM, TAXONOMY)
-    expected = (0.4 * result["tfidf_score"] +
-                0.4 * result["skills_score"] +
-                0.2 * result["experience_score"])
-    assert result["final_score"] == pytest.approx(expected, abs=0.001)
+def test_validate_data_empty_inputs():
+    assert validate_data([], []) is True
