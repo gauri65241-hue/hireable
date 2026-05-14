@@ -1,4 +1,4 @@
-name: linkedin-agent-assistant
+name: hireable
 channels:
   - conda-forge
 dependencies:

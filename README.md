@@ -1,4 +1,4 @@
-# LinkedIn Agent Assistant
+# hireable
 
 An LLM-as-judge pipeline that scores resume-to-job fit across 5 independent dimensions, generates a tailored resume, and produces role-specific interview prep — running entirely locally via Ollama with no cloud dependency or API costs.
 
@@ -104,7 +104,7 @@ ollama serve
 ```bash
 # Conda (recommended)
 conda env create -f environment.yml
-conda activate linkedin-agent-assistant
+conda activate hireable
 
 # Or pip
 pip install -r requirements.txt
@@ -192,7 +192,7 @@ results/
 ## Project structure
 
 ```
-linkedin-agent-assistant/
+hireable/
 ├── linkedin_api.py         # FastAPI app — all endpoints, resume edit logic
 ├── specialized_judges.py   # Judge prompts, LLM calls, JSON parsing, coach
 ├── chunker.py              # Text parsing and prompt formatting per judge

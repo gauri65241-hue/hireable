@@ -39,7 +39,7 @@ ollama pull deepseek-r1:14b
 ollama serve
 
 conda env create -f environment.yml
-conda activate linkedin-agent-assistant
+conda activate hireable
 
 cp .env.example .env
 uvicorn linkedin_api:app --reload
