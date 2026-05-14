@@ -61,7 +61,7 @@ def load_skills_taxonomy(json_path: str) -> Dict[str, Any]:
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             taxonomy = json.load(f)
-        print(f"Successfully loaded skills taxonomy")
+        print(f"Successfully loaded skills taxonomy from {json_path}")
         return taxonomy
     except FileNotFoundError:
         print(f"Skills taxonomy file not found: {json_path}")
