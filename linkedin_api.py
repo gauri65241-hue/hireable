@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
@@ -99,6 +99,7 @@ class AddResumeRequest(BaseModel):
     title: str
     skills: str
     text: str
+    experience_years: str = ""
 
 class AddJobRequest(BaseModel):
     title: str
@@ -369,11 +370,17 @@ async def get_jobs():
 @app.post("/resumes")
 async def add_resume(req: AddResumeRequest):
     global resumes_data
-    existing_ids = [int(r.get('resume_id', 0)) for r in resumes_data if str(r.get('resume_id', '')).isdigit()]
-    new_id = max(existing_ids) + 1 if existing_ids else 1
+    resumes_data = load_resumes(RESUMES_CSV)  # refresh before ID calculation
+    # Parse numeric part from both "resume_001" and plain "1" formats
+    def parse_num(rid):
+        s = str(rid).lower().replace("resume_", "").strip()
+        return int(s) if s.isdigit() else 0
+    existing_nums = [parse_num(r.get('resume_id', 0)) for r in resumes_data]
+    next_num = max(existing_nums) + 1 if existing_nums else 1
+    new_id = f"resume_{next_num:03d}"
     with open(RESUMES_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow([new_id, req.name, req.title, "", req.skills, req.text])
+        writer.writerow([new_id, req.name, req.title, req.experience_years, req.skills, req.text])
     resumes_data = load_resumes(RESUMES_CSV)
     return {"success": True, "id": new_id}
 
@@ -1231,9 +1238,9 @@ async def edit_resume(req: EditResumeRequest):
     # Only apply rewrites that modify existing content (bullet_rewrite, deletion).
     # Skip strategic_addition and gap_warning — those either fabricate new bullets
     # or are informational flags, not edits to apply.
-    # Also reject any bullet_rewrite whose suggestion contains placeholder metrics like [X%].
+    # Reject rewrites containing placeholder metrics: [X%], bare X%/Y%/Z%, or bracket-wrapped values.
     import re as _re
-    PLACEHOLDER_RE = _re.compile(r'\[.{1,30}?\]')
+    PLACEHOLDER_RE = _re.compile(r'\[.{1,30}?\]|\b[A-Z]%|\b[A-Z]\s*%')
     REWRITE_TYPES = {"bullet_rewrite", "deletion"}
     actionable = [
         r for r in coach_recs
@@ -1307,6 +1314,210 @@ Return the complete resume with existing bullets reworded to better highlight re
         f.write(edited_text)
 
     return {"edited_text": edited_text, "result_id": req.result_id, "cached": False}
+
+
+# --- PDF RESUME EXTRACTION ---
+@app.post("/extract-pdf")
+async def extract_pdf(file: UploadFile = File(...)):
+    """Extract plain text from a PDF resume and parse name/title/skills via LLM."""
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    try:
+        from pypdf import PdfReader
+        from io import BytesIO
+        contents = await file.read()
+        reader = PdfReader(BytesIO(contents))
+        pages = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            pages.append(text.strip())
+        full_text = "\n\n".join(p for p in pages if p)
+        if not full_text.strip():
+            raise HTTPException(status_code=422, detail="Could not extract text from PDF — it may be image-based or encrypted")
+        # Fix spaced-character encoding: some PDFs produce "g a u r i" instead of "gauri".
+        # Detect by checking if >40% of tokens are single characters.
+        tokens = full_text.split()
+        if tokens and sum(1 for t in tokens if len(t) == 1) / len(tokens) > 0.4:
+            full_text = re.sub(r'(?<=[A-Za-z0-9.,@]) (?=[A-Za-z0-9.,@])', '', full_text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
+
+    # LLM-parse structured fields from the first ~1500 chars (name/title/skills are always near the top)
+    parsed = {"name": "", "title": "", "skills": ""}
+    try:
+        from specialized_judges import call_ollama
+        model = get_free_model()
+        system = "You extract structured data from resume text. Return ONLY valid JSON, no markdown, no explanation."
+        prompt = f"""Extract these fields from the resume below:
+- name: the candidate's full name (exactly as written)
+- title: their primary/most recent job title (one title only, not a list)
+- skills: comma-separated list of up to 12 core technical skills (tools, languages, frameworks only — no soft skills)
+
+Resume (top section):
+{full_text[:1500]}
+
+Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
+        result = call_ollama(system, prompt, model, temperature=0.0)
+        if result.get("success"):
+            raw = result.get("data", "")
+            # Strip markdown fences if present
+            raw = re.sub(r"```[a-z]*\n?", "", raw).strip()
+            data = json.loads(raw)
+            parsed["name"] = str(data.get("name", "")).strip()
+            parsed["title"] = str(data.get("title", "")).strip()
+            parsed["skills"] = str(data.get("skills", "")).strip()
+    except Exception:
+        pass  # structured parsing is best-effort; raw text is always returned
+
+    return {
+        "text": full_text,
+        "pages": len(reader.pages),
+        "name": parsed["name"],
+        "title": parsed["title"],
+        "skills": parsed["skills"],
+    }
+
+
+# --- JOB URL FETCH ---
+class FetchJobURLRequest(BaseModel):
+    url: str
+
+@app.post("/fetch-job-url")
+async def fetch_job_url(req: FetchJobURLRequest):
+    """Fetch a job posting URL and extract the job description text."""
+    import httpx
+    from bs4 import BeautifulSoup
+
+    url = req.url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Job page returned HTTP {resp.status_code}")
+        html = resp.text
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Request timed out — job site took too long to respond")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not fetch URL: {str(e)}")
+
+    # Quick check: if the static fetch returned almost nothing, the page is JS-rendered.
+    # Fall back to Playwright to actually execute the JavaScript and get the real DOM.
+    static_text_len = len(strip_html(html))
+    if static_text_len < 500:
+        print(f"  Static fetch too thin ({static_text_len} chars) — trying Playwright for JS-rendered page")
+        try:
+            from playwright.async_api import async_playwright
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(
+                    user_agent=headers["User-Agent"],
+                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+                )
+                await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                # Wait for any job-content container to appear
+                for selector in ["[class*='job']", "[class*='description']", "main", "article"]:
+                    try:
+                        await page.wait_for_selector(selector, timeout=4000)
+                        break
+                    except Exception:
+                        continue
+                html = await page.content()
+                await browser.close()
+            print(f"  Playwright fetch succeeded: {len(html)} chars of HTML")
+        except Exception as pw_err:
+            print(f"  Playwright fallback failed: {pw_err} — proceeding with static HTML")
+
+    # Step 1: best-effort HTML → plain text
+    # Try JSON-LD structured data first (Greenhouse, Lever, Workable embed this)
+    raw_text = strip_html(html)
+
+    # BeautifulSoup fallback — also always run to get cleaner text than regex alone
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(["script", "style", "noscript", "nav", "header", "footer", "aside"]):
+        tag.decompose()
+    content = None
+    for selector in [
+        "[class*='job-description']", "[class*='jobDescription']",
+        "[class*='job_description']", "[id*='job-description']",
+        "[class*='description']", "main", "article", "[role='main']",
+    ]:
+        content = soup.select_one(selector)
+        if content and len(content.get_text(strip=True)) > 200:
+            break
+    target = content or soup.find("body") or soup
+    bs_text = "\n".join(
+        line for line in target.get_text(separator="\n", strip=True).splitlines()
+        if line.strip()
+    )
+
+    # Use whichever extraction is longer (more content)
+    raw_text = bs_text if len(bs_text) > len(raw_text) else raw_text
+
+    if len(raw_text) < 100:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract job description — the page may require login or JavaScript rendering (LinkedIn requires auth)"
+        )
+
+    raw_text = raw_text[:5000]  # cap before LLM call
+
+    # Step 2: LLM parses structured fields + cleans the JD text
+    # Works even on noisy LinkedIn HTML — the model can find signal in the noise
+    structured = {"title": "", "company": "", "experience_required": "", "skills_required": "", "job_description": raw_text}
+    try:
+        from specialized_judges import call_ollama
+        model = get_free_model()
+        system = "You extract structured job posting data. Return ONLY valid JSON, no markdown, no explanation."
+        prompt = f"""From the job posting text below, extract these fields:
+- title: job title only (e.g. "Applied AI Engineer")
+- company: company name only (e.g. "Talently")
+- experience_required: years/level of experience (e.g. "1-4 years" or "Mid-Senior")
+- skills_required: comma-separated list of up to 12 core technical skills only
+- job_description: the clean job description text — remove all navigation, "Sign in", "Skip to main content", similar jobs sections, and other page noise. Keep only the actual job posting content.
+
+Job posting text:
+{raw_text}
+
+Return exactly: {{"title": "...", "company": "...", "experience_required": "...", "skills_required": "...", "job_description": "..."}}"""
+
+        result = call_ollama(system, prompt, model, temperature=0.0)
+        if result.get("success"):
+            raw = re.sub(r"```[a-z]*\n?", "", result.get("data", "")).strip()
+            # Extract JSON from response (model may add reasoning before JSON for deepseek-r1)
+            json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                structured["title"]               = str(data.get("title", "")).strip()
+                structured["company"]             = str(data.get("company", "")).strip()
+                structured["experience_required"] = str(data.get("experience_required", "")).strip()
+                structured["skills_required"]     = str(data.get("skills_required", "")).strip()
+                clean_jd = str(data.get("job_description", "")).strip()
+                if len(clean_jd) > 100:
+                    structured["job_description"] = clean_jd
+    except Exception:
+        pass  # structured parsing best-effort; raw text always returned
+
+    return {
+        "job_description":     structured["job_description"],
+        "title":               structured["title"],
+        "company":             structured["company"],
+        "experience_required": structured["experience_required"],
+        "skills_required":     structured["skills_required"],
+        "source_url":          url,
+    }
 
 
 if __name__ == "__main__":

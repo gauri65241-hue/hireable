@@ -831,12 +831,23 @@
                                     <input id="resume-title" placeholder="Senior ML Engineer">
                                 </div>
                                 <div class="field">
+                                    <label>Years of Experience</label>
+                                    <input id="resume-exp" placeholder="4">
+                                </div>
+                                <div class="field">
                                     <label>Core Skills</label>
                                     <input id="resume-skills" placeholder="Python, PyTorch, AWS">
                                 </div>
                                 <div class="field">
-                                    <label>Resume Text</label>
-                                    <textarea id="resume-text" rows="8" placeholder="Paste full resume text here..."></textarea>
+                                    <label style="display:flex;align-items:center;justify-content:space-between;">
+                                        Resume Text
+                                        <span>
+                                            <input type="file" id="pdf-upload-input" accept=".pdf" style="display:none" onchange="uploadPDF()">
+                                            <button type="button" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="document.getElementById('pdf-upload-input').click()">Upload PDF</button>
+                                            <span id="pdf-upload-status" class="hint" style="margin-left:6px;"></span>
+                                        </span>
+                                    </label>
+                                    <textarea id="resume-text" rows="8" placeholder="Paste full resume text here, or upload a PDF above..."></textarea>
                                 </div>
                                 <div class="page-toolbar" style="margin-top: 0;">
                                     <span id="resume-status" class="hint"></span>
@@ -893,8 +904,16 @@
                                     <input id="job-skills" placeholder="Python, FastAPI, RAG">
                                 </div>
                                 <div class="field">
+                                    <label>Fetch from URL</label>
+                                    <div style="display:flex;gap:8px;align-items:center;">
+                                        <input id="job-url-input" type="url" placeholder="https://jobs.greenhouse.io/..." style="flex:1;">
+                                        <button type="button" class="btn btn-secondary" style="white-space:nowrap;font-size:12px;" onclick="fetchJobFromURL()">Fetch JD</button>
+                                    </div>
+                                    <span id="job-url-status" class="hint" style="display:block;margin-top:4px;"></span>
+                                </div>
+                                <div class="field">
                                     <label>Job Description</label>
-                                    <textarea id="job-description" rows="8" placeholder="Paste full job description here..."></textarea>
+                                    <textarea id="job-description" rows="8" placeholder="Paste full job description here, or fetch from URL above..."></textarea>
                                 </div>
                                 <div class="page-toolbar" style="margin-top: 0;">
                                     <span id="job-status" class="hint"></span>
@@ -1115,6 +1134,7 @@
                         body: JSON.stringify({
                             name: document.getElementById('resume-name').value,
                             title: document.getElementById('resume-title').value,
+                            experience_years: document.getElementById('resume-exp').value,
                             skills: document.getElementById('resume-skills').value,
                             text: document.getElementById('resume-text').value
                         })
@@ -1284,6 +1304,66 @@
         }
 
         // API helper
+        async function uploadPDF() {
+            const input = document.getElementById('pdf-upload-input');
+            const status = document.getElementById('pdf-upload-status');
+            const file = input.files[0];
+            if (!file) return;
+            status.textContent = 'Extracting…';
+            status.style.color = 'var(--text2)';
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                const resp = await fetch('/extract-pdf', { method: 'POST', body: form });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${resp.status}`);
+                }
+                const data = await resp.json();
+                document.getElementById('resume-text').value = data.text;
+                if (data.name)   document.getElementById('resume-name').value   = data.name;
+                if (data.title)  document.getElementById('resume-title').value  = data.title;
+                if (data.skills) document.getElementById('resume-skills').value = data.skills;
+                status.textContent = `✓ ${data.pages} page${data.pages !== 1 ? 's' : ''} extracted`;
+                status.style.color = 'var(--green)';
+            } catch (e) {
+                status.textContent = `✗ ${e.message}`;
+                status.style.color = 'var(--red)';
+            }
+            input.value = '';
+        }
+
+        async function fetchJobFromURL() {
+            const urlInput = document.getElementById('job-url-input');
+            const status = document.getElementById('job-url-status');
+            const url = urlInput.value.trim();
+            if (!url) { status.textContent = 'Enter a URL first'; status.style.color = 'var(--amber)'; return; }
+            status.textContent = 'Fetching…';
+            status.style.color = 'var(--text2)';
+            try {
+                const resp = await fetch('/fetch-job-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${resp.status}`);
+                }
+                const data = await resp.json();
+                document.getElementById('job-description').value = data.job_description;
+                if (data.title)               document.getElementById('job-title').value   = data.title;
+                if (data.company)             document.getElementById('job-company').value = data.company;
+                if (data.experience_required) document.getElementById('job-exp').value     = data.experience_required;
+                if (data.skills_required)     document.getElementById('job-skills').value  = data.skills_required;
+                status.textContent = `✓ JD extracted (${data.job_description.length} chars)`;
+                status.style.color = 'var(--green)';
+            } catch (e) {
+                status.textContent = `✗ ${e.message}`;
+                status.style.color = 'var(--red)';
+            }
+        }
+
         async function api(path, options = {}) {
             const url = path.startsWith('http') ? path : `${window.location.origin}${path}`;
             const response = await fetch(url, options);
