@@ -1,0 +1,8 @@
+[lint]
+select = ["E", "F"]
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"linkedin_api.py" = ["E402", "F841", "F821"]
+"specialized_judges.py" = ["E722", "E701"]
+"chunker.py" = ["E741"]
