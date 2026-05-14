@@ -1,5 +1,7 @@
 # hireable
 
+![CI](https://github.com/gauri65241-hue/hireable/actions/workflows/ci.yml/badge.svg)
+
 An LLM-as-judge pipeline that scores resume-to-job fit across 5 independent dimensions, generates a tailored resume, and produces role-specific interview prep — running entirely locally via Ollama with no cloud dependency or API costs.
 
 ---
