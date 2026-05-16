@@ -318,17 +318,3 @@ PDF-aware: pypdf and pdfminer strip bullet characters (•, ▪) and can collaps
 - **Quantification**: matches numbers with `+` suffix (`12+`, `5,000+`), domain nouns (`metrics`, `datasets`, `tests`), and standard units
 
 ---
-
-## Limitations
-
-**Claims are not verified.** The judges score what the resume says. A fabricated metric or exaggerated title passes if it's plausible.
-
-**PDF extraction quality matters.** Scanned PDFs, two-column layouts, and graphics-heavy templates produce garbled text. Plain text or single-column PDFs extract cleanly.
-
-**Skills not in the taxonomy get missed.** The skills judge uses `data/skills_taxonomy.json` as a token vocabulary. Extend the taxonomy file for niche tools.
-
-**Job URL scraping is best-effort.** Works on Greenhouse, Lever, Workable, most company career pages. Fails on LinkedIn (requires auth).
-
-**Scores don't predict hiring outcomes without calibration.** The judges measure resume-to-JD textual fit, not recruiter preferences or team culture. Use the outcomes feedback loop (record interview/offer results via `/record_outcome`) to calibrate weights to your real signal.
-
-**Local inference speed.** A full pipeline run takes 30–90 seconds on a modern Mac with `deepseek-r1:14b` loaded. Cold start adds ~20s.
