@@ -15,7 +15,7 @@ import re
 import asyncio
 import os
 import logging
-from typing import Dict, Any, Optional, List
+from typing import List
 
 import httpx
 from langchain_ollama import ChatOllama
@@ -503,7 +503,7 @@ def call_api_model(
     model: str,
     api_key: str,
     api_base_url: str = "https://openrouter.ai/api/v1",
-    temperature: float = 0.1,
+    temperature: float = 0.0,
 ) -> dict:
     """Call any OpenAI-compatible API (OpenRouter, OpenAI, etc.)."""
     try:
@@ -537,7 +537,7 @@ def call_ollama(
     system_prompt: str,
     user_prompt: str,
     model: str = "deepseek-r1:14b",
-    temperature: float = 0.1,
+    temperature: float = 0.0,
     api_key: str = "",
     api_base_url: str = "",
 ) -> dict:
@@ -902,7 +902,7 @@ async def _run_with_retry(
             extra = None
 
         try:
-            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.1, api_key=api_key, api_base_url=api_base_url)
+            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.0, api_key=api_key, api_base_url=api_base_url)
             if not result["success"]:
                 if attempt == max_retries - 1:
                     return {"success": False, "error": result["error"], "raw_response": "", "attempts": attempt + 1}
@@ -990,7 +990,7 @@ class SpecializedJudgeEngine:
             absent_seniority_signals, irrelevant_statements, unquantified_statements
         )
         try:
-            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.2, api_key=api_key, api_base_url=api_base_url)
+            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.1, api_key=api_key, api_base_url=api_base_url)
             if not result["success"]: return {"success": False, "error": result["error"], "raw_response": ""}
             parsed = robust_parse_response(result["data"], "coach")
             return {"success": parsed.get("success", False), "data": parsed, "raw_response": result["data"]}
@@ -1020,7 +1020,7 @@ class SpecializedJudgeEngine:
         rel_scores = calculate_relevancy_score(relevancy_res.get("data", {}))
         imp_scores = calculate_impact_score(impact_res.get("data", {}))
 
-        print(f"\n📊 Stage 2 Component Scores:")
+        print("\n📊 Stage 2 Component Scores:")
         print(f"   Skills:     {s_scores['score']:.1%}")
         print(f"   Experience: {e_scores['score']:.1%}")
         print(f"   Seniority:  {sr_scores['score']:.1%}")

@@ -2,14 +2,16 @@ import os
 import re
 import json
 import csv
-import asyncio
+import logging
 from collections import defaultdict
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 def strip_html(text: str) -> str:
@@ -53,15 +55,15 @@ load_dotenv()
 # Import the new Specialized Judges System
 from specialized_judges import (
     SpecializedJudgeEngine,
-    robust_parse_response,
-    calculate_skills_score,
-    calculate_experience_score,
     calculate_overall_match,
     JUDGE_DEFAULT_WEIGHTS,
 )
 
 # Import data loaders from your CLI script
 from linkedin_cli_v1 import load_resumes, load_jobs
+
+from ats_checker import score_ats, ats_to_dict
+import db as run_db
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESUMES_CSV = os.path.join(BASE_DIR, "data", "resumes.csv")
@@ -83,6 +85,8 @@ class AnalyzeRequest(BaseModel):
     llm_models: list[str] = ["deepseek-r1:14b"]
     api_key: str = ""
     api_base_url: str = ""
+    candidate_name: str = ""
+    job_title: str = ""
 
 class BatchSummaryRequest(BaseModel):
     batch_data: str
@@ -121,6 +125,8 @@ async def lifespan(app: FastAPI):
         print(f"✅ Loaded {len(resumes_data)} resumes and {len(jobs_data)} jobs.")
     except Exception as e:
         print(f"⚠️ Error loading CSV data: {e}")
+    run_db.init_db()
+    print("✅ SQLite run history DB initialised.")
     yield
 
 app = FastAPI(title="LinkedIn Agent API", lifespan=lifespan)
@@ -291,7 +297,7 @@ def _experience_stub(resume_years: str, job_years: str) -> float:
 @app.post("/match_job")
 async def match_job(req: MatchJobRequest):
     """CLI-style composite score: TF-IDF 40% + skills Jaccard 40% + exp stub 20%."""
-    from linkedin_cli_v1 import load_resumes, load_jobs
+    from linkedin_cli_v1 import load_resumes
     base = os.path.dirname(os.path.abspath(__file__))
     resumes = load_resumes(os.path.join(base, "data", "resumes.csv"))
     resume = next((r for r in resumes if int(r["resume_id"]) == req.resume_id), None)
@@ -420,7 +426,12 @@ async def analyze_resume_unified(request: AnalyzeRequest):
 
         model = request.llm_models[0]
         timestamp = datetime.utcnow().isoformat()
-        
+
+        # --- ATS pre-flight (instant, no LLM) ---
+        ats_result = score_ats(request.resume_text, job_description)
+        ats_dict = ats_to_dict(ats_result)
+        print(f"🗂  ATS pre-flight: {ats_result.score}/100 ({ats_result.grade}) — {len(ats_result.issues)} issues")
+
         # Load skills taxonomy
         skills_taxonomy = {}
         try:
@@ -450,6 +461,9 @@ async def analyze_resume_unified(request: AnalyzeRequest):
         
         if not pipeline_result:
             raise HTTPException(status_code=500, detail="Judge pipeline failed to produce results")
+
+        # Embed ATS into pipeline_result so it's persisted in pipeline_json
+        pipeline_result["ats_preflight"] = ats_dict
 
         # Recompute overall with learned weights if enough feedback exists
         learned = compute_learned_weights()
@@ -508,10 +522,23 @@ async def analyze_resume_unified(request: AnalyzeRequest):
             "impact_score": impact_scores.get("score", 0),
             "pipeline_data": pipeline_result  # Full pipeline data for debugging
         }
-        # Save results to JSON files
+        # Save to SQLite for persistent history
         result_id = f"analysis_{timestamp.replace(':', '-').replace('.', '-')}"
-        
-        # Save full pipeline result
+        try:
+            run_db.save_run(
+                run_id=result_id,
+                model=model,
+                resume_text=request.resume_text,
+                job_desc=request.job_description,
+                pipeline_result=pipeline_result,
+                ats_result=ats_dict,
+                candidate_name=request.candidate_name,
+                job_title=request.job_title,
+            )
+        except Exception as db_err:
+            logger.warning(f"SQLite save failed (non-fatal): {db_err}")
+
+        # Save results to JSON files (legacy)
         pipeline_save = {
             "timestamp": timestamp,
             "model": model,
@@ -572,10 +599,11 @@ async def analyze_resume_unified(request: AnalyzeRequest):
                 "unquantified_statements": unquantified_statements,
                 "coach_recommendations": coach_recommendations
             },
-            "pipeline_data": pipeline_result,  # Add full pipeline data for frontend
+            "pipeline_data": pipeline_result,
+            "ats_preflight": ats_dict,
             "metadata": {
-                "model_used": model, 
-                "timestamp": timestamp, 
+                "model_used": model,
+                "timestamp": timestamp,
                 "result_id": result_id,
                 "pipeline_version": "5-stage-v2.0"
             }
@@ -584,24 +612,21 @@ async def analyze_resume_unified(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/list_results")
-async def list_results():
-    """Return all saved pipeline results from the results/pipeline directory."""
-    pipeline_dir = os.path.join(BASE_DIR, "results", "pipeline")
+async def list_results(limit: int = 50, offset: int = 0):
+    """Return saved pipeline results from SQLite, falling back to JSON files for legacy runs."""
 
-    # Build lookup maps from CSV data for clean name/title resolution
-    resume_lookup = {}  # text_prefix -> (name, title)
-    job_lookup = {}     # description_prefix -> "title – company"
+    # Build CSV lookups once — used for both DB enrichment and JSON fallback
+    resume_lookup: dict[str, tuple[str, str]] = {}
+    job_lookup: dict[str, str] = {}
     try:
-        resumes_data = load_resumes(RESUMES_CSV)
-        for r in resumes_data:
+        for r in load_resumes(RESUMES_CSV):
             prefix = (r.get("text") or "")[:200].strip()
             if prefix:
                 resume_lookup[prefix] = (r.get("name", ""), r.get("title", ""))
     except Exception:
         pass
     try:
-        jobs_data = load_jobs(JOBS_CSV)
-        for j in jobs_data:
+        for j in load_jobs(JOBS_CSV):
             prefix = (j.get("description") or "")[:200].strip()
             if prefix:
                 label = j.get("title", "")
@@ -612,30 +637,50 @@ async def list_results():
     except Exception:
         pass
 
-    def match_resume(text):
-        """Find best matching resume name from CSV."""
+    def match_resume(text: str) -> str:
         if not text:
             return ""
         needle = text[:200].strip()
         for prefix, (name, title) in resume_lookup.items():
             if needle[:len(prefix)] == prefix or prefix[:len(needle)] == needle:
                 return name or title or ""
+        # Last resort: find first short line that looks like a name (not a location/email/url)
+        _loc_re = re.compile(r',\s*[A-Z]|\d{5}|@|http|www\.|linkedin\.com', re.IGNORECASE)
+        for line in text.splitlines():
+            line = line.strip()
+            if 2 <= len(line.split()) <= 5 and not _loc_re.search(line) and line[0].isupper():
+                return line
         return ""
 
-    def match_job(desc):
-        """Find best matching job title from CSV."""
+    def match_job(desc: str) -> str:
         if not desc:
             return ""
         needle = desc[:200].strip()
         for prefix, label in job_lookup.items():
             if needle[:len(prefix)] == prefix or prefix[:len(needle)] == needle:
                 return label
-        # Fallback: first clean line of description
         for line in desc.splitlines():
             line = line.strip()
             if line and not line.startswith("(window.") and not line.startswith("{"):
                 return line[:80]
         return ""
+
+    # Primary: SQLite
+    try:
+        db_rows = run_db.list_runs(limit=limit, offset=offset)
+        if db_rows:
+            # Enrich rows where candidate_name/job_title were not stored (pre-fix runs)
+            for row in db_rows:
+                if not row.get("resume_name"):
+                    row["resume_name"] = match_resume(row.get("resume_snippet", ""))
+                if not row.get("job_title"):
+                    row["job_title"] = match_job(row.get("job_snippet", ""))
+            return db_rows
+    except Exception as db_err:
+        logger.warning(f"SQLite list_runs failed, falling back to JSON files: {db_err}")
+
+    # Fallback: scan JSON files (pre-SQLite runs)
+    pipeline_dir = os.path.join(BASE_DIR, "results", "pipeline")
     results = []
     try:
         files = sorted(
@@ -1313,7 +1358,35 @@ Return the complete resume with existing bullets reworded to better highlight re
     with open(cache_file, "w", encoding="utf-8") as f:
         f.write(edited_text)
 
-    return {"edited_text": edited_text, "result_id": req.result_id, "cached": False}
+    # Validation loop: ATS score before vs after (instant — no LLM)
+    original_resume = data.get("resume_text", "")
+    job_desc_text = data.get("job_description", "")
+    ats_before = ats_to_dict(score_ats(original_resume, job_desc_text))
+    ats_after  = ats_to_dict(score_ats(edited_text, job_desc_text))
+    delta = round(ats_after["score"] - ats_before["score"], 1)
+    fixed = [c["label"] for c in ats_after["criteria"]
+             if c["passed"] and not next((b for b in ats_before["criteria"] if b["id"] == c["id"]), {}).get("passed")]
+    regressed = [c["label"] for c in ats_after["criteria"]
+                 if not c["passed"] and next((b for b in ats_before["criteria"] if b["id"] == c["id"]), {}).get("passed")]
+    ats_validation = {
+        "before": {"score": ats_before["score"], "grade": ats_before["grade"]},
+        "after":  {"score": ats_after["score"],  "grade": ats_after["grade"]},
+        "delta": delta,
+        "fixed": fixed,
+        "regressed": regressed,
+        "verdict": "improved" if delta > 0 else "regressed" if delta < 0 else "unchanged",
+    }
+    try:
+        run_db.update_run_tailored(req.result_id, edited_text, ats_validation)
+    except Exception as db_err:
+        logger.warning(f"SQLite update_run_tailored failed (non-fatal): {db_err}")
+
+    return {
+        "edited_text": edited_text,
+        "result_id": req.result_id,
+        "cached": False,
+        "ats_validation": ats_validation,
+    }
 
 
 # --- PDF RESUME EXTRACTION ---
@@ -1322,27 +1395,78 @@ async def extract_pdf(file: UploadFile = File(...)):
     """Extract plain text from a PDF resume and parse name/title/skills via LLM."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+
+    from io import BytesIO
+    contents = await file.read()
+    full_text = ""
+    extraction_method = "pypdf"
+
+    # Stage 1: pypdf
     try:
         from pypdf import PdfReader
-        from io import BytesIO
-        contents = await file.read()
         reader = PdfReader(BytesIO(contents))
-        pages = []
-        for page in reader.pages:
-            text = page.extract_text() or ""
-            pages.append(text.strip())
-        full_text = "\n\n".join(p for p in pages if p)
-        if not full_text.strip():
-            raise HTTPException(status_code=422, detail="Could not extract text from PDF — it may be image-based or encrypted")
-        # Fix spaced-character encoding: some PDFs produce "g a u r i" instead of "gauri".
-        # Detect by checking if >40% of tokens are single characters.
+        pages = [page.extract_text() or "" for page in reader.pages]
+        full_text = "\n\n".join(p.strip() for p in pages if p.strip())
+    except Exception as e:
+        logger.warning(f"pypdf extraction failed: {e}")
+
+    # Confidence check: flag sparse/spaced-char PDFs
+    def _is_sparse(text: str) -> bool:
+        tokens = text.split()
+        if not tokens:
+            return True
+        single_char_ratio = sum(1 for t in tokens if len(t) == 1) / len(tokens)
+        return len(text.strip()) < 100 or single_char_ratio > 0.4
+
+    # Fix spaced-character encoding artifact
+    if full_text and not _is_sparse(full_text):
         tokens = full_text.split()
         if tokens and sum(1 for t in tokens if len(t) == 1) / len(tokens) > 0.4:
             full_text = re.sub(r'(?<=[A-Za-z0-9.,@]) (?=[A-Za-z0-9.,@])', '', full_text)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
+
+    # Stage 2: pdfminer fallback (better layout analysis for multi-column PDFs)
+    if _is_sparse(full_text):
+        try:
+            from pdfminer.high_level import extract_text as pdfminer_extract
+            full_text = pdfminer_extract(BytesIO(contents)) or ""
+            extraction_method = "pdfminer"
+            logger.info("pypdf sparse — fell back to pdfminer")
+        except ImportError:
+            logger.warning("pdfminer not installed — skipping pdfminer fallback")
+        except Exception as e:
+            logger.warning(f"pdfminer extraction failed: {e}")
+
+    # Stage 3: OCR via pytesseract (image-based / scanned PDFs)
+    if _is_sparse(full_text):
+        try:
+            import pytesseract
+            from pdf2image import convert_from_bytes
+            images = convert_from_bytes(contents, dpi=200)
+            ocr_pages = [pytesseract.image_to_string(img) for img in images]
+            full_text = "\n\n".join(p.strip() for p in ocr_pages if p.strip())
+            extraction_method = "ocr"
+            logger.info(f"Fell back to OCR — extracted {len(full_text)} chars from {len(images)} pages")
+        except ImportError:
+            logger.warning("pytesseract/pdf2image not installed — OCR fallback unavailable")
+        except Exception as e:
+            logger.warning(f"OCR extraction failed: {e}")
+
+    if not full_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract text from PDF — it may be image-based or encrypted. "
+                   "Install pytesseract + pdf2image for OCR support, or paste resume text directly."
+        )
+
+    confidence = "high"
+    tokens = full_text.split()
+    if tokens:
+        single_ratio = sum(1 for t in tokens if len(t) == 1) / len(tokens)
+        chars_per_word = len(full_text) / len(tokens)
+        if single_ratio > 0.2 or chars_per_word < 3:
+            confidence = "low"
+        elif single_ratio > 0.1 or chars_per_word < 4:
+            confidence = "medium"
 
     # LLM-parse structured fields from the first ~1500 chars (name/title/skills are always near the top)
     parsed = {"name": "", "title": "", "skills": ""}
@@ -1373,10 +1497,11 @@ Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
 
     return {
         "text": full_text,
-        "pages": len(reader.pages),
         "name": parsed["name"],
         "title": parsed["title"],
         "skills": parsed["skills"],
+        "extraction_method": extraction_method,
+        "confidence": confidence,
     }
 
 
@@ -1518,6 +1643,95 @@ Return exactly: {{"title": "...", "company": "...", "experience_required": "..."
         "skills_required":     structured["skills_required"],
         "source_url":          url,
     }
+
+
+# --- ATS CHECKER (standalone, no LLM) ---
+class AtsCheckRequest(BaseModel):
+    resume_text: str
+    job_description: str = ""
+
+@app.post("/ats-check")
+async def ats_check(req: AtsCheckRequest):
+    """Instant ATS scan — no LLM. Returns score, grade, 9-criterion breakdown."""
+    result = score_ats(req.resume_text, req.job_description)
+    return ats_to_dict(result)
+
+
+# --- SKILL MATCHER ---
+INCOME_PATHS_FILE = os.path.join(BASE_DIR, "data", "income_paths.json")
+
+def _load_income_paths() -> list[dict]:
+    with open(INCOME_PATHS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _extract_resume_skill_tokens(resume_text: str) -> set[str]:
+    """Lowercase token set from resume text — simple but fast."""
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_\-\.+#]{1,30}", resume_text.lower())
+    # Expand common multi-word phrases that appear as single tokens in resume
+    text_lower = resume_text.lower()
+    extras = set()
+    ALIASES = {
+        "machine learning": "machine_learning", "deep learning": "deep_learning",
+        "natural language": "nlp", "large language": "llm", "langchain": "langchain",
+        "fast api": "fastapi", "scikit": "scikit-learn", "sklearn": "scikit-learn",
+        "pytorch": "pytorch", "tensorflow": "tensorflow", "docker": "docker",
+        "kubernetes": "kubernetes", "aws": "aws", "azure": "azure", "gcp": "gcp",
+        "sql": "sql", "postgresql": "sql", "postgres": "sql", "mysql": "sql",
+        "react": "react", "next.js": "nextjs", "nextjs": "nextjs",
+        "typescript": "typescript", "javascript": "javascript",
+        "prompt engineering": "prompt_engineering", "fine.tuning": "fine_tuning",
+        "rag": "rag", "vector": "vector_databases", "chromadb": "vector_databases",
+        "pinecone": "vector_databases", "mlops": "mlops", "airflow": "airflow",
+        "dbt": "dbt", "spark": "spark", "kafka": "kafka",
+    }
+    for phrase, skill in ALIASES.items():
+        if phrase in text_lower:
+            extras.add(skill)
+    return set(tokens) | extras
+
+class SkillMatchRequest(BaseModel):
+    resume_text: str
+
+@app.post("/skill-match")
+async def skill_match(req: SkillMatchRequest):
+    """Match resume skills against all income paths. Returns top 10 ranked by fit %."""
+    paths = _load_income_paths()
+    resume_tokens = _extract_resume_skill_tokens(req.resume_text)
+
+    matches = []
+    for path in paths:
+        required = [s.lower().replace("-", "_") for s in path.get("required_skills", [])]
+        nice = [s.lower().replace("-", "_") for s in path.get("nice_to_have", [])]
+        all_skills = required + nice
+
+        matched_req  = [s for s in required if any(s in tok or tok in s for tok in resume_tokens)]
+        matched_nice = [s for s in nice if any(s in tok or tok in s for tok in resume_tokens)]
+        missing_req  = [s for s in required if s not in matched_req]
+
+        if not required:
+            pct = 0.0
+        else:
+            # 70% weight on required, 30% on nice-to-have
+            req_score  = len(matched_req) / len(required)
+            nice_score = len(matched_nice) / len(nice) if nice else 0.0
+            pct = round((req_score * 0.7 + nice_score * 0.3) * 100, 1)
+
+        matches.append({
+            "id": path["id"],
+            "title": path["title"],
+            "category": path["category"],
+            "description": path["description"],
+            "income_range": path["income_range"]["display"],
+            "time_to_first_income": path["time_to_first_income"],
+            "market_demand": path["market_demand"],
+            "match_pct": pct,
+            "matched_skills": matched_req + matched_nice,
+            "missing_required": missing_req,
+            "starter_actions": path.get("starter_actions", []),
+        })
+
+    matches.sort(key=lambda x: x["match_pct"], reverse=True)
+    return {"matches": matches[:10], "total_paths": len(paths)}
 
 
 if __name__ == "__main__":

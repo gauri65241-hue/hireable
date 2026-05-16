@@ -1,0 +1,342 @@
+[
+  {
+    "id": "ml_engineer",
+    "title": "ML Engineer",
+    "category": "tech_fulltime",
+    "description": "Build and deploy machine learning models at scale. Design training pipelines, feature stores, and inference infrastructure.",
+    "income_range": {"min": 90000, "max": 200000, "unit": "annual", "display": "$90k–$200k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "machine_learning", "scikit-learn", "sql", "git"],
+    "nice_to_have": ["pytorch", "mlops", "docker", "kubernetes", "distributed_systems"],
+    "starter_actions": [
+      "Build 2 end-to-end ML projects with public datasets",
+      "Deploy at least one model as a REST API",
+      "Write about your work on LinkedIn or a blog",
+      "Apply to 10–15 companies per week"
+    ]
+  },
+  {
+    "id": "ai_engineer",
+    "title": "AI/LLM Engineer",
+    "category": "tech_fulltime",
+    "description": "Build LLM-powered products — RAG pipelines, agents, evaluation frameworks, prompt systems. High demand, fast-moving field.",
+    "income_range": {"min": 100000, "max": 220000, "unit": "annual", "display": "$100k–$220k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["python", "llm", "langchain", "fastapi", "rag", "prompt_engineering"],
+    "nice_to_have": ["fine_tuning", "vector_databases", "mlops", "docker", "evaluation"],
+    "starter_actions": [
+      "Build a RAG system with evaluation (RAGAS)",
+      "Open source one LLM tool or agent",
+      "Write about LLM engineering tradeoffs publicly",
+      "Target AI-first companies and Series A–C startups"
+    ]
+  },
+  {
+    "id": "data_scientist",
+    "title": "Data Scientist",
+    "category": "tech_fulltime",
+    "description": "Analyse data, build predictive models, and communicate insights to business stakeholders.",
+    "income_range": {"min": 80000, "max": 160000, "unit": "annual", "display": "$80k–$160k/yr"},
+    "time_to_first_income": "1–4 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "sql", "machine_learning", "statistics", "data_analysis"],
+    "nice_to_have": ["r", "tableau", "spark", "experiment_design", "causal_inference"],
+    "starter_actions": [
+      "Complete 2 Kaggle competitions and write up findings",
+      "Build a portfolio of business-framed analyses (not just notebooks)",
+      "Learn SQL deeply — window functions, CTEs",
+      "Target product analytics and growth roles as entry points"
+    ]
+  },
+  {
+    "id": "ml_freelancer",
+    "title": "ML/AI Freelancer",
+    "category": "freelance",
+    "description": "Take contract projects building ML models, data pipelines, or LLM integrations for clients. Higher hourly rate, variable income.",
+    "income_range": {"min": 50, "max": 200, "unit": "hourly", "display": "$50–$200/hr"},
+    "time_to_first_income": "2–6 weeks (first client)",
+    "market_demand": "high",
+    "required_skills": ["python", "machine_learning", "fastapi", "sql", "client_communication"],
+    "nice_to_have": ["llm", "docker", "data_engineering", "proposal_writing"],
+    "starter_actions": [
+      "Pick one niche (e.g. LLM integrations for SaaS tools)",
+      "Create a simple portfolio page with 2–3 case studies",
+      "List on Toptal, Upwork, or direct LinkedIn outreach",
+      "Price higher than you think — underpricing signals inexperience"
+    ]
+  },
+  {
+    "id": "ai_consultant",
+    "title": "AI Strategy Consultant",
+    "category": "freelance",
+    "description": "Help companies understand where AI applies to their business, evaluate vendors, and design implementation roadmaps. No code required — judgment and communication matter more.",
+    "income_range": {"min": 150, "max": 500, "unit": "hourly", "display": "$150–$500/hr"},
+    "time_to_first_income": "1–3 months (client acquisition)",
+    "market_demand": "high",
+    "required_skills": ["machine_learning", "llm", "communication", "business_analysis", "presentation"],
+    "nice_to_have": ["product_strategy", "stakeholder_management", "industry_domain_knowledge"],
+    "starter_actions": [
+      "Write 5 detailed posts on AI adoption mistakes companies make",
+      "Offer 2 free strategy sessions to build case studies",
+      "Target mid-market companies (50–500 employees) not enterprise",
+      "Package advice as audits: AI Readiness Audit ($2k–5k flat)"
+    ]
+  },
+  {
+    "id": "technical_content_creator",
+    "title": "Technical Content Creator",
+    "category": "creator",
+    "description": "Teach ML, AI, or data science through YouTube, newsletters, or courses. Monetise via sponsorships, courses, and affiliate income.",
+    "income_range": {"min": 20000, "max": 300000, "unit": "annual", "display": "$20k–$300k/yr (highly variable)"},
+    "time_to_first_income": "6–18 months (audience building)",
+    "market_demand": "medium",
+    "required_skills": ["machine_learning", "python", "communication", "writing", "teaching"],
+    "nice_to_have": ["video_production", "seo", "email_marketing", "course_design"],
+    "starter_actions": [
+      "Pick ONE platform and ONE niche — do not spread thin",
+      "Publish 20 pieces of content before evaluating traction",
+      "Teach what you just learned — beginner's mind is an asset",
+      "Email list is the only asset you own — start it on day 1"
+    ]
+  },
+  {
+    "id": "ml_course_creator",
+    "title": "ML/AI Course Creator",
+    "category": "creator",
+    "description": "Build and sell online courses on ML, AI engineering, or data skills. One-time build, recurring revenue.",
+    "income_range": {"min": 5000, "max": 100000, "unit": "annual", "display": "$5k–$100k/yr passive"},
+    "time_to_first_income": "3–6 months (course build + launch)",
+    "market_demand": "medium",
+    "required_skills": ["machine_learning", "python", "teaching", "curriculum_design", "writing"],
+    "nice_to_have": ["video_production", "audience", "marketing"],
+    "starter_actions": [
+      "Validate with a free mini-course or cohort first",
+      "Sell before you build — pre-sell to 20 people at a discount",
+      "Host on Gumroad or Maven to avoid platform dependency",
+      "Niche down: 'ML for finance' beats 'learn ML'"
+    ]
+  },
+  {
+    "id": "saas_founder",
+    "title": "AI SaaS Founder",
+    "category": "entrepreneurship",
+    "description": "Build a software product powered by AI/ML. Sell subscriptions. Full ownership, high risk, high reward.",
+    "income_range": {"min": 0, "max": 1000000, "unit": "annual", "display": "$0–$1M+ (highly variable)"},
+    "time_to_first_income": "3–12 months",
+    "market_demand": "high",
+    "required_skills": ["python", "fastapi", "llm", "product_thinking", "fullstack"],
+    "nice_to_have": ["marketing", "sales", "user_research", "growth"],
+    "starter_actions": [
+      "Identify one painful workflow and automate it with AI",
+      "Ship an MVP in 2 weeks — not 2 months",
+      "Charge from day 1 — free users give bad signal",
+      "Talk to 10 potential customers before writing code"
+    ]
+  },
+  {
+    "id": "data_engineer",
+    "title": "Data Engineer",
+    "category": "tech_fulltime",
+    "description": "Build pipelines, warehouses, and infrastructure that move and transform data at scale.",
+    "income_range": {"min": 85000, "max": 170000, "unit": "annual", "display": "$85k–$170k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "sql", "data_pipelines", "spark", "airflow"],
+    "nice_to_have": ["dbt", "kafka", "cloud_platforms", "docker"],
+    "starter_actions": [
+      "Build an end-to-end pipeline: ingest → transform → serve",
+      "Learn dbt and Airflow — they are everywhere",
+      "Get comfortable with a cloud data warehouse (BigQuery, Snowflake)",
+      "Data engineering skills transfer easily from DS/ML backgrounds"
+    ]
+  },
+  {
+    "id": "mlops_engineer",
+    "title": "MLOps / Platform Engineer",
+    "category": "tech_fulltime",
+    "description": "Own the infrastructure that trains, evaluates, and serves ML models in production. High demand, smaller talent pool than DS/ML.",
+    "income_range": {"min": 95000, "max": 190000, "unit": "annual", "display": "$95k–$190k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["python", "docker", "kubernetes", "mlops", "ci_cd"],
+    "nice_to_have": ["kubeflow", "mlflow", "terraform", "monitoring"],
+    "starter_actions": [
+      "Deploy a model with FastAPI + Docker + CI/CD pipeline",
+      "Add monitoring (data drift, performance degradation)",
+      "Learn MLflow or similar for experiment tracking",
+      "Target companies with existing ML teams but no MLOps"
+    ]
+  },
+  {
+    "id": "product_manager_ai",
+    "title": "AI Product Manager",
+    "category": "tech_fulltime",
+    "description": "Own the roadmap for AI-powered products. Bridge between technical ML teams and business/customers. Technical PM background valued highly.",
+    "income_range": {"min": 90000, "max": 180000, "unit": "annual", "display": "$90k–$180k/yr"},
+    "time_to_first_income": "2–4 months (job search + transition)",
+    "market_demand": "high",
+    "required_skills": ["machine_learning", "product_thinking", "communication", "data_analysis", "stakeholder_management"],
+    "nice_to_have": ["sql", "user_research", "agile", "llm"],
+    "starter_actions": [
+      "Document your ML projects from a product impact lens",
+      "Learn product fundamentals: Jobs-to-be-done, PRDs, metrics",
+      "Target APM roles or internal transitions at tech companies",
+      "Your ML background is a strong differentiator — lead with it"
+    ]
+  },
+  {
+    "id": "ml_researcher",
+    "title": "ML Researcher",
+    "category": "tech_fulltime",
+    "description": "Push the state of the art in ML. Publish papers, develop new algorithms, work at research labs or academia.",
+    "income_range": {"min": 80000, "max": 300000, "unit": "annual", "display": "$80k–$300k/yr"},
+    "time_to_first_income": "3–12 months (academic or industry research role)",
+    "market_demand": "medium",
+    "required_skills": ["python", "deep_learning", "pytorch", "mathematics", "research_writing"],
+    "nice_to_have": ["phd", "publications", "reinforcement_learning", "theory"],
+    "starter_actions": [
+      "Reproduce one recent NeurIPS/ICML paper fully",
+      "Write a clear explainer of a paper on LinkedIn or Arxiv",
+      "Apply to research internships or residencies (Google, Meta, DeepMind)",
+      "Strong math (linear algebra, probability, optimisation) is non-negotiable"
+    ]
+  },
+  {
+    "id": "ai_writing_coach",
+    "title": "AI-Augmented Writing Coach",
+    "category": "freelance",
+    "description": "Help founders, executives, and creators improve their writing using AI tools. Package as coaching, ghostwriting, or content strategy.",
+    "income_range": {"min": 75, "max": 250, "unit": "hourly", "display": "$75–$250/hr"},
+    "time_to_first_income": "2–4 weeks",
+    "market_demand": "medium",
+    "required_skills": ["writing", "communication", "llm", "prompt_engineering", "teaching"],
+    "nice_to_have": ["content_strategy", "personal_branding", "editing"],
+    "starter_actions": [
+      "Build your own writing presence first — 50 posts minimum",
+      "Offer 3 free sessions, document results, build testimonials",
+      "Package as a 4-week sprint with deliverables",
+      "Target founders and technical people who hate writing"
+    ]
+  },
+  {
+    "id": "devtools_builder",
+    "title": "Dev Tools / OSS Builder",
+    "category": "entrepreneurship",
+    "description": "Build open source tools for developers or ML practitioners. Monetise via cloud hosting, premium features, or enterprise licensing.",
+    "income_range": {"min": 0, "max": 500000, "unit": "annual", "display": "$0–$500k+"},
+    "time_to_first_income": "6–24 months",
+    "market_demand": "high",
+    "required_skills": ["python", "fastapi", "git", "documentation", "community_building"],
+    "nice_to_have": ["typescript", "docker", "ci_cd", "technical_writing"],
+    "starter_actions": [
+      "Scratch your own itch — build the tool you wish existed",
+      "Ship early, get GitHub stars, iterate on feedback",
+      "Write excellent documentation — this is the product for dev tools",
+      "Monetise the hosted version (OSS core, paid cloud)"
+    ]
+  },
+  {
+    "id": "llm_prompt_engineer",
+    "title": "Prompt Engineer / LLM Specialist",
+    "category": "tech_fulltime",
+    "description": "Specialise in getting the best output from LLMs — evaluation, prompt design, fine-tuning strategy, and red-teaming.",
+    "income_range": {"min": 80000, "max": 160000, "unit": "annual", "display": "$80k–$160k/yr"},
+    "time_to_first_income": "1–2 months",
+    "market_demand": "high",
+    "required_skills": ["llm", "prompt_engineering", "python", "evaluation", "communication"],
+    "nice_to_have": ["fine_tuning", "lora", "rlhf", "red_teaming"],
+    "starter_actions": [
+      "Build a systematic prompt evaluation framework and publish it",
+      "Document 10 non-obvious prompting techniques with examples",
+      "Contribute to LLM benchmarking or evaluation repos on GitHub",
+      "This role evolves fast — follow the frontier weekly"
+    ]
+  },
+  {
+    "id": "technical_recruiter_ai",
+    "title": "Technical Recruiter (AI/ML niche)",
+    "category": "freelance",
+    "description": "Place AI/ML engineers at companies. Commission-based. Your technical credibility lets you qualify candidates and roles better than non-technical recruiters.",
+    "income_range": {"min": 50000, "max": 200000, "unit": "annual", "display": "$50k–$200k/yr (commission)"},
+    "time_to_first_income": "2–4 months (first placement)",
+    "market_demand": "medium",
+    "required_skills": ["machine_learning", "communication", "networking", "sales"],
+    "nice_to_have": ["industry_connections", "ats_tools", "negotiation"],
+    "starter_actions": [
+      "Build relationships with 20 AI engineers in your network",
+      "Partner with 3–5 early-stage startups actively hiring",
+      "Standard contingency fee: 15–25% of first-year salary",
+      "Your technical understanding is your entire edge here"
+    ]
+  },
+  {
+    "id": "data_analyst",
+    "title": "Data Analyst",
+    "category": "tech_fulltime",
+    "description": "Answer business questions with data. SQL, dashboards, A/B test analysis. Lower barrier to entry than DS/ML, faster first job.",
+    "income_range": {"min": 55000, "max": 110000, "unit": "annual", "display": "$55k–$110k/yr"},
+    "time_to_first_income": "1–2 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["sql", "python", "data_analysis", "excel", "communication"],
+    "nice_to_have": ["tableau", "looker", "statistics", "experiment_design"],
+    "starter_actions": [
+      "Build 3 portfolio analyses from public business datasets",
+      "Learn SQL deeply — this is the primary tool",
+      "Practice presenting findings, not just building dashboards",
+      "Good stepping stone to DS/ML roles with on-the-job data access"
+    ]
+  },
+  {
+    "id": "ai_startup_early",
+    "title": "Early-Stage AI Startup (employee #1–10)",
+    "category": "tech_fulltime",
+    "description": "Join a pre-seed or seed stage AI startup as a founding engineer or early ML hire. Equity upside, fast learning, high uncertainty.",
+    "income_range": {"min": 60000, "max": 150000, "unit": "annual", "display": "$60k–$150k + equity"},
+    "time_to_first_income": "1–2 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "fastapi", "llm", "machine_learning", "fullstack"],
+    "nice_to_have": ["docker", "product_thinking", "speed", "ambiguity_tolerance"],
+    "starter_actions": [
+      "Target YC batch companies (current + recent batches)",
+      "Apply to roles directly via founder LinkedIn — skip job boards",
+      "Show evidence of shipping fast: side projects, OSS contributions",
+      "Negotiate equity seriously — it often exceeds salary value"
+    ]
+  },
+  {
+    "id": "research_engineer",
+    "title": "Research Engineer",
+    "category": "tech_fulltime",
+    "description": "Implement and scale research ideas into production systems. Bridge between research and engineering. Found at AI labs (Anthropic, OpenAI, DeepMind, etc.).",
+    "income_range": {"min": 120000, "max": 350000, "unit": "annual", "display": "$120k–$350k/yr"},
+    "time_to_first_income": "2–6 months (highly competitive)",
+    "market_demand": "medium",
+    "required_skills": ["python", "pytorch", "deep_learning", "distributed_systems", "mathematics"],
+    "nice_to_have": ["cuda", "research_writing", "publications", "rlhf"],
+    "starter_actions": [
+      "Reproduce a frontier model paper fully — document it publicly",
+      "Contribute to major ML OSS repos (Transformers, vLLM, etc.)",
+      "Strong systems skills (CUDA, distributed training) differentiate you",
+      "These roles are highly competitive — plan 6–12 months preparation"
+    ]
+  },
+  {
+    "id": "ai_agency",
+    "title": "AI Implementation Agency",
+    "category": "entrepreneurship",
+    "description": "Build a small agency that implements AI solutions for businesses — chatbots, automation, analytics. Client services model.",
+    "income_range": {"min": 80000, "max": 400000, "unit": "annual", "display": "$80k–$400k/yr (agency revenue)"},
+    "time_to_first_income": "1–2 months (first client)",
+    "market_demand": "very_high",
+    "required_skills": ["python", "llm", "fastapi", "client_communication", "project_management"],
+    "nice_to_have": ["sales", "proposal_writing", "no_code_tools", "industry_domain_knowledge"],
+    "starter_actions": [
+      "Pick one vertical (legal, real estate, healthcare, e-commerce)",
+      "Build one reference implementation for that vertical",
+      "Price as projects ($5k–$50k) not hourly — better margins",
+      "First clients: warm network, local businesses, referrals"
+    ]
+  }
+]
