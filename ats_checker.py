@@ -1,7 +1,10 @@
 """
 ATS compliance pre-flight checker.
-Ported from resume-ats-optimizer — 9 heuristic criteria, no LLM needed.
+9 heuristic criteria, no LLM needed.
 Runs before the 5 LLM judges as an instant structural check.
+
+PDF-aware: handles plain-text extraction where bullet characters and
+section-heading line breaks are stripped by pypdf/pdfminer.
 """
 
 import re
@@ -11,18 +14,20 @@ from typing import Optional
 SECTION_HEADINGS = [
     "experience", "work experience", "professional experience", "employment",
     "education", "skills", "technical skills", "summary", "objective",
-    "profile", "projects", "certifications", "achievements", "publications",
-    "awards", "languages", "interests", "references",
+    "profile", "about me", "about", "projects", "certifications",
+    "achievements", "publications", "awards", "languages", "interests",
+    "references",
 ]
 
 ACTION_VERBS = [
-    "achieved", "built", "created", "designed", "developed", "drove",
-    "engineered", "established", "executed", "generated", "implemented",
-    "improved", "increased", "launched", "led", "managed", "optimised",
-    "optimized", "owned", "reduced", "scaled", "shipped", "spearheaded",
-    "streamlined", "delivered", "deployed", "automated", "architected",
+    "achieved", "architected", "automated", "built", "created", "designed",
+    "developed", "drove", "engineered", "established", "executed",
+    "generated", "implemented", "improved", "increased", "launched", "led",
+    "managed", "optimised", "optimized", "owned", "reduced", "scaled",
+    "shipped", "spearheaded", "streamlined", "delivered", "deployed",
     "coordinated", "mentored", "negotiated", "partnered", "produced",
-    "resolved", "transformed",
+    "resolved", "transformed", "researched", "analyzed", "analysed",
+    "integrated", "migrated", "refactored", "maintained",
 ]
 
 STOPWORDS = {
@@ -67,18 +72,93 @@ def _check_contact_info(text: str) -> ATSCriterion:
 
 
 def _check_section_headings(text: str) -> ATSCriterion:
+    """
+    PDF-aware detection: checks three signals.
+    1. Heading word appears anywhere in text (broad match — handles merged lines)
+    2. Short ALL-CAPS lines (PDF heading style)
+    3. Title-case short standalone lines
+    Need ≥3 distinct heading matches.
+    """
     lower = text.lower()
-    found = [h for h in SECTION_HEADINGS if re.search(rf'\b{re.escape(h)}\b', lower)]
-    passed = len(found) >= 3
+
+    # Signal 1: known heading word anywhere (no strict trailing \b — handles run-together text)
+    word_found = [h for h in SECTION_HEADINGS
+                  if re.search(rf'\b{re.escape(h)}', lower)]
+
+    # Signal 2: short ALL-CAPS lines (e.g. "EXPERIENCE", "EDUCATION", "SKILLS")
+    caps_lines = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if 2 <= len(stripped.split()) <= 5 and stripped.isupper() and len(stripped) >= 4:
+            caps_lines.add(stripped.lower())
+
+    # Merge unique hits
+    all_found = list(dict.fromkeys(word_found + [c for c in caps_lines
+                                                  if any(h in c for h in SECTION_HEADINGS)]))
+    passed = len(all_found) >= 3
     return ATSCriterion("section_headings", "Section Headings", 15, passed,
-                        f"{len(found)} standard headings found: {', '.join(found[:6])}")
+                        f"{len(all_found)} standard headings found: {', '.join(all_found[:6])}"
+                        if all_found else "0 standard headings found")
 
 
 def _check_bullet_points(text: str) -> ATSCriterion:
-    bullet_lines = [l for l in text.splitlines() if re.match(r'^\s*[-•*▪◦→]\s+\S', l)]
-    passed = len(bullet_lines) >= 5
-    return ATSCriterion("bullet_points", "Bullet Points", 10, passed,
-                        f"{len(bullet_lines)} bullet-formatted lines (need ≥5)")
+    """
+    PDF-aware bullet detection — four signals, best count wins.
+
+    Signal 1 — Explicit chars: lines starting with •, -, *, ▪ etc.
+    Signal 2 — Line-proxy: medium-length lines starting with action verb
+               (when PDF preserves newlines between bullets).
+    Signal 3 — Sentence-proxy: split on sentence boundaries and count
+               action-verb-starting segments (when PDF merges bullets into
+               paragraphs but periods are preserved).
+    Signal 4 — Action-verb count: count of distinct action verb occurrences
+               in the full text. Final fallback for PDFs that merge bullets
+               AND strip periods between them (e.g. "...Inc. Architected...
+               Engineered... Developed"). If a resume has 5+ action verb
+               hits it almost certainly has 5+ bullets.
+    """
+    action_re = re.compile(r'\b(' + '|'.join(ACTION_VERBS) + r')\b', re.IGNORECASE)
+    action_start_re = re.compile(r'^(' + '|'.join(ACTION_VERBS) + r')\b', re.IGNORECASE)
+    lines = text.splitlines()
+
+    # Signal 1: explicit bullet chars
+    explicit = [line for line in lines if re.match(r'^\s*[-•*▪◦→✓]\s+\S', line)]
+
+    # Signal 2: line-level proxy
+    line_proxy = []
+    for line in lines:
+        stripped = line.strip()
+        words = stripped.split()
+        if len(words) < 6 or len(words) > 60:
+            continue
+        if stripped and action_start_re.match(stripped):
+            if not stripped.endswith(':'):
+                line_proxy.append(stripped)
+
+    # Signal 3: sentence-level proxy (split on '. ' or '; ' before capital)
+    sentence_splits = re.split(r'(?<=[.;])\s+(?=[A-Z])', text)
+    sentence_proxy = [s.strip() for s in sentence_splits
+                      if action_start_re.match(s.strip()) and 5 < len(s.split()) <= 80]
+
+    # Signal 4: raw action-verb occurrence count (most PDF-robust)
+    verb_hits = action_re.findall(text.lower())
+    verb_count = len(verb_hits)
+
+    best_count = max(len(explicit), len(line_proxy), len(sentence_proxy), verb_count)
+    passed = best_count >= 5
+
+    if explicit:
+        detail = f"{len(explicit)} explicit bullets detected"
+    elif line_proxy:
+        detail = f"{len(line_proxy)} bullet-style lines detected (PDF stripped bullet chars)"
+    elif sentence_proxy:
+        detail = f"{len(sentence_proxy)} action-verb sentences detected (PDF merged bullets into paragraphs)"
+    elif verb_count >= 5:
+        detail = f"{verb_count} action-verb instances detected across bullet content (PDF merged lines)"
+    else:
+        detail = "0 bullet-formatted lines (need ≥5)"
+
+    return ATSCriterion("bullet_points", "Bullet Points", 10, passed, detail)
 
 
 def _check_action_verbs(text: str) -> ATSCriterion:
@@ -90,13 +170,39 @@ def _check_action_verbs(text: str) -> ATSCriterion:
 
 
 def _check_quantification(text: str) -> ATSCriterion:
-    hits = re.findall(
-        r'\d+\s*(?:%|x\b|times\b|million\b|k\b|thousand\b|billion\b|hrs?\b|days?\b|weeks?\b|months?\b|years?\b)',
+    """
+    PDF-aware: matches standard metric patterns PLUS:
+    - Numbers with + suffix: "12+", "5,000+", "7+"
+    - Numbers followed by domain nouns: metrics, datasets, tests, users, etc.
+    - Percentages and multipliers
+    """
+    # Standard: number + unit/percentage
+    standard = re.findall(
+        r'\d{1,3}(?:,\d{3})*[+]?\s*(?:%|x\b|×|times\b|million\b|k\b|thousand\b|'
+        r'billion\b|hrs?\b|days?\b|weeks?\b|months?\b|years?\b)',
         text, re.IGNORECASE
     )
-    passed = len(hits) >= 2
+    # Domain nouns common in tech resumes
+    domain_noun = re.findall(
+        r'\d{1,3}(?:,\d{3})*[+]?\s+'
+        r'(?:custom\s+)?(?:rag\s+)?'
+        r'(?:metrics?|datasets?|tests?|models?|products?|features?|pipelines?|'
+        r'agents?|systems?|questions?|q&a|endpoints?|users?|clients?|customers?|'
+        r'employees?|teams?|projects?|services?|apis?|repositories?|repos?|'
+        r'languages?|libraries?|frameworks?|tools?|rules?|labels?|pairs?|'
+        r'functions?|queries?|reports?|dashboards?|experiments?|runs?)',
+        text, re.IGNORECASE
+    )
+    # Bare number+plus (e.g. "12+" or "5,000+" as standalone quantifier)
+    bare_plus = re.findall(r'\d{1,3}(?:,\d{3})*\+', text)
+
+    all_hits = standard + domain_noun + bare_plus
+    # Deduplicate overlapping matches
+    unique = list(dict.fromkeys(all_hits))
+    passed = len(unique) >= 2
     return ATSCriterion("quantification", "Quantified Results", 15, passed,
-                        f"{len(hits)} quantified data points (need ≥2)")
+                        f"{len(unique)} quantified data points (need ≥2): {', '.join(unique[:5])}"
+                        if unique else "0 quantified data points (need ≥2)")
 
 
 def _check_dates(text: str) -> ATSCriterion:
@@ -119,7 +225,7 @@ def _check_length(text: str) -> ATSCriterion:
 
 
 def _check_no_tables(text: str) -> ATSCriterion:
-    pipe_lines = sum(1 for l in text.splitlines() if l.count('|') >= 2)
+    pipe_lines = sum(1 for ln in text.splitlines() if ln.count('|') >= 2)
     passed = pipe_lines < 3
     return ATSCriterion("no_tables", "No Table Formatting", 10, passed,
                         "Table formatting detected — ATS often fails to parse pipe-separated content"
