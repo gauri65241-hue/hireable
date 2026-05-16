@@ -22,8 +22,27 @@ The system runs locally because resume data is personal. Nothing leaves your mac
 
 ## What it does
 
+### System Health
+Monitor API status, database connectivity, and LLM service health in real time.
+
+![System Health](assets/screenshot_system_health.png)
+
 ### Analyzer — 5-judge LLM pipeline
 Score a resume against a job description across 5 independent dimensions. Each judge runs a structured prompt, parses the JSON response, and returns a score + gap list. All five run concurrently before the coach synthesises.
+
+![Results Table](assets/screenshot_results_table.png)
+
+![Results Analysis](assets/screenshot_results_analysis.png)
+
+![Judge Breakdown](assets/screenshot_judge_breakdown.png)
+
+![Impact & Coach](assets/screenshot_impact_coach.png)
+
+![Coach Recommendations](assets/screenshot_coach_recommendations.png)
+
+![Tailored Resume](assets/screenshot_tailored_resume.png)
+
+![Interview Prep](assets/screenshot_interview_prep.png)
 
 ### ATS Checker — instant structural scan
 9-criterion heuristic check with no LLM. Results in under a second. PDF-aware: correctly handles text where pypdf/pdfminer strips bullet characters and collapses section headings.
