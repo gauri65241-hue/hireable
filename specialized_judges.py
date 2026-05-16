@@ -1,5 +1,5 @@
 """
-Specialized LLM Judges for LinkedIn Agent
+Specialized LLM Judges for hireable
 ==========================================
 Fixes & Upgrades applied:
   1. robust_parse_response: fixed backtick typo that silently broke JSON parsing

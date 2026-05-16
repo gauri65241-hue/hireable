@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LinkedIn Agent CLI - Data Loading and Processing Functions
+hireable CLI - Data Loading and Processing Functions
 """
 
 import pandas as pd

@@ -116,7 +116,7 @@ class AddJobRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global resumes_data, jobs_data
-    print("🚀 Starting Unified LinkedIn Agent API...")
+    print("🚀 Starting hireable API...")
     if not get_llm_api_key():
         print("⚠️ WARNING: No LLM API Key detected in .env file.")
     try:
@@ -129,7 +129,7 @@ async def lifespan(app: FastAPI):
     print("✅ SQLite run history DB initialised.")
     yield
 
-app = FastAPI(title="LinkedIn Agent API", lifespan=lifespan)
+app = FastAPI(title="hireable API", lifespan=lifespan)
 
 # --- Initialize Judge Engine ---
 judge_engine = SpecializedJudgeEngine()
