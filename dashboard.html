@@ -742,6 +742,19 @@
                     </svg>
                     Results
                 </button>
+                <div class="nav-label" style="margin-top:10px;">Tools</div>
+                <button class="nav-item" onclick="showView('ats-checker')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path>
+                    </svg>
+                    ATS Checker
+                </button>
+                <button class="nav-item" onclick="showView('career-paths')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    Career Paths
+                </button>
             </nav>
         </aside>
 
@@ -1105,6 +1118,91 @@
                         <div id="result-detail"></div>
                     </div>
                 </section>
+
+                <!-- ATS Checker View -->
+                <section id="ats-checker" class="page">
+                    <div class="page-header">
+                        <h1>ATS Checker</h1>
+                        <p>Instant 9-criterion ATS scan — no LLM needed. Paste your resume and optionally a job description.</p>
+                    </div>
+                    <div class="grid two" style="gap:20px;align-items:start;">
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Input</h3></div>
+                            <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+                                <div class="field">
+                                    <label>Select saved resume</label>
+                                    <select id="ats-resume-select" onchange="loadAtsResume()">
+                                        <option value="">— choose saved resume —</option>
+                                    </select>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                                    <span style="font-size:11px;color:var(--text3);">or upload PDF</span>
+                                    <label style="cursor:pointer;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text2);">
+                                        Upload PDF
+                                        <input type="file" id="ats-pdf-input" accept=".pdf" style="display:none;" onchange="uploadAtsPdf()">
+                                    </label>
+                                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                                </div>
+                                <div class="field">
+                                    <label>Resume Text <span style="color:var(--red)">*</span></label>
+                                    <textarea id="ats-resume-input" rows="10" placeholder="Paste your resume text here…" style="font-family:var(--font-mono);font-size:12px;"></textarea>
+                                </div>
+                                <div class="field">
+                                    <label>Job Description <span style="color:var(--text3)">(optional — enables keyword check)</span></label>
+                                    <textarea id="ats-jd-input" rows="5" placeholder="Paste the job description to check keyword coverage…" style="font-family:var(--font-mono);font-size:12px;"></textarea>
+                                </div>
+                                <button class="btn btn-primary" onclick="runAtsCheck()" id="ats-run-btn">Run ATS Check</button>
+                                <div id="ats-status" style="font-size:12px;color:var(--text2);min-height:18px;"></div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3 class="card-title">Results</h3></div>
+                            <div id="ats-results" style="padding:16px;">
+                                <div style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0;">Run a check to see results</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Career Paths View -->
+                <section id="career-paths" class="page">
+                    <div class="page-header">
+                        <h1>Career Paths</h1>
+                        <p>Match your resume skills against 20 income paths — full-time, freelance, consulting, and content. See skill gaps and 30-day starter plans.</p>
+                    </div>
+                    <div class="grid two" style="gap:20px;align-items:start;">
+                        <div class="card" style="position:sticky;top:80px;">
+                            <div class="card-header"><h3 class="card-title">Your Resume</h3></div>
+                            <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+                                <div class="field">
+                                    <label>Select saved resume</label>
+                                    <select id="cp-resume-select" onchange="loadCpResume()">
+                                        <option value="">— choose saved resume —</option>
+                                    </select>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                                    <span style="font-size:11px;color:var(--text3);">or upload PDF</span>
+                                    <label style="cursor:pointer;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text2);">
+                                        Upload PDF
+                                        <input type="file" id="cp-pdf-input" accept=".pdf" style="display:none;" onchange="uploadCpPdf()">
+                                    </label>
+                                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                                </div>
+                                <div class="field">
+                                    <label>Paste resume text</label>
+                                    <textarea id="cp-resume-text" rows="10" placeholder="Paste resume text directly…" style="font-family:var(--font-mono);font-size:12px;"></textarea>
+                                </div>
+                                <button class="btn btn-primary" onclick="findCareerPaths()" id="cp-run-btn">Find Matches</button>
+                                <div id="cp-status" style="font-size:12px;color:var(--text2);min-height:18px;"></div>
+                            </div>
+                        </div>
+                        <div id="cp-results">
+                            <div style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0;">Paste a resume and click Find Matches</div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
@@ -1232,6 +1330,8 @@
                                             llm_models: [model],
                                             api_key,
                                             api_base_url,
+                                            candidate_name: resume.name || '',
+                                            job_title: job.title || '',
                                         })
                                     });
 
@@ -1295,12 +1395,17 @@
         });
 
         // Navigation
+        const VIEW_TITLES = {
+            health: 'System Health', resumes: 'Resumes', jobs: 'Jobs',
+            analyzer: 'Analyzer', results: 'Results',
+            'ats-checker': 'ATS Checker', 'career-paths': 'Career Paths'
+        };
         function showView(viewName) {
             document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
             document.getElementById(viewName).classList.add('active');
             event.currentTarget.classList.add('active');
-            document.getElementById('pageTitle').textContent = viewName.charAt(0).toUpperCase() + viewName.slice(1);
+            document.getElementById('pageTitle').textContent = VIEW_TITLES[viewName] || viewName;
         }
 
         // API helper
@@ -1405,6 +1510,7 @@
                 
                 // Populate analyzer dropdowns after data is loaded
                 populateAnalyzerDropdowns();
+                populateCpResumeDropdown();
 
                 const details = document.getElementById('health-details');
                 details.innerHTML = `
@@ -2018,6 +2124,20 @@
                         <div id="session-summary-text-${escapeHtml(resultId)}" style="font-size:0.85rem;color:var(--text2);font-style:italic;">Please wait…</div>
                     </div>
 
+                    ${(() => {
+                        const ats = r.ats_preflight || {};
+                        const atsScore = ats.score ?? r.ats_score;
+                        const atsGrade = ats.grade ?? r.ats_grade;
+                        if (atsScore == null) return '';
+                        const atsColor = atsScore >= 85 ? '#22c55e' : atsScore >= 70 ? '#f59e0b' : atsScore >= 55 ? '#f97316' : '#ef4444';
+                        return `<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid ${atsColor};border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                            <span style="font-size:0.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">ATS Pre-flight</span>
+                            <span style="font-size:1rem;font-weight:700;color:${atsColor};">${atsScore}/100</span>
+                            <span style="font-size:0.8rem;font-weight:700;color:${atsColor};background:${atsColor}20;padding:0.15rem 0.5rem;border-radius:4px;">Grade ${atsGrade}</span>
+                            ${(ats.issues||[]).slice(0,2).map(i => `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);padding:0.1rem 0.4rem;border-radius:4px;">⚠ ${escapeHtml(i.split(':')[0])}</span>`).join('')}
+                        </div>`;
+                    })()}
+
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;">
                         <div style="background:${scoreColor(overall)};color:#fff;padding:0.4rem 1.2rem;border-radius:8px;font-size:1.1rem;font-weight:700;">Overall: ${overall}%</div>
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">🔧 Skills: ${m.skills_coverage ?? '—'}%</div>
@@ -2026,6 +2146,24 @@
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">🎯 Relevancy: ${m.statement_relevancy ?? '—'}%</div>
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">📈 Impact: ${m.impact_quantification ?? '—'}%</div>
                     </div>
+
+                    ${(() => {
+                        const ats = r.ats_preflight || {};
+                        const criteria = ats.criteria || [];
+                        if (!criteria.length) return '';
+                        const rows = criteria.map(c =>
+                            `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--border);">
+                                <span style="font-size:0.85rem;">${c.passed ? '✅' : '❌'}</span>
+                                <span style="font-size:0.82rem;font-weight:600;flex:1;">${escapeHtml(c.label)}</span>
+                                <span style="font-size:0.72rem;color:var(--text2);text-align:right;max-width:55%;">${escapeHtml(c.detail)}</span>
+                                <span style="font-size:0.7rem;color:var(--text2);min-width:2rem;text-align:right;">${c.weight}pts</span>
+                            </div>`
+                        ).join('');
+                        return `<details style="margin-bottom:0.75rem;">
+                            <summary style="cursor:pointer;font-weight:700;padding:0.5rem;background:var(--surface2);border-radius:6px;">🗂 ATS Pre-flight Checks</summary>
+                            <div style="padding:0.5rem 0.25rem;">${rows}</div>
+                        </details>`;
+                    })()}
 
                     <details open style="margin-bottom:0.75rem;">
                         <summary style="cursor:pointer;font-weight:700;padding:0.5rem;background:var(--surface2);border-radius:6px;">🔧 Skills Judge</summary>
@@ -2441,6 +2579,20 @@
                         <div style="font-size:0.85rem;color:var(--text2);">Generating…</div>
                     </div>
 
+                    ${(() => {
+                        const ats = r.ats_preflight || {};
+                        const atsScore = ats.score ?? r.ats_score;
+                        const atsGrade = ats.grade ?? r.ats_grade;
+                        if (atsScore == null) return '';
+                        const atsColor = atsScore >= 85 ? '#22c55e' : atsScore >= 70 ? '#f59e0b' : atsScore >= 55 ? '#f97316' : '#ef4444';
+                        return `<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid ${atsColor};border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                            <span style="font-size:0.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">ATS Pre-flight</span>
+                            <span style="font-size:1rem;font-weight:700;color:${atsColor};">${atsScore}/100</span>
+                            <span style="font-size:0.8rem;font-weight:700;color:${atsColor};background:${atsColor}20;padding:0.15rem 0.5rem;border-radius:4px;">Grade ${atsGrade}</span>
+                            ${(ats.issues||[]).slice(0,2).map(i => `<span style="font-size:0.72rem;color:#f59e0b;background:rgba(245,158,11,0.1);padding:0.1rem 0.4rem;border-radius:4px;">⚠ ${escapeHtml(i.split(':')[0])}</span>`).join('')}
+                        </div>`;
+                    })()}
+
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;">
                         <div style="background:${scoreColor(overall)};color:#fff;padding:0.4rem 1.2rem;border-radius:8px;font-size:1.1rem;font-weight:700;">Overall: ${overall}%</div>
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">🔧 Skills: ${m.skills_coverage ?? '—'}%</div>
@@ -2449,6 +2601,24 @@
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">🎯 Relevancy: ${m.statement_relevancy ?? '—'}%</div>
                         <div style="background:var(--surface2);padding:0.4rem 0.75rem;border-radius:8px;font-size:0.85rem;font-weight:600;">📈 Impact: ${m.impact_quantification ?? '—'}%</div>
                     </div>
+
+                    ${(() => {
+                        const ats = r.ats_preflight || {};
+                        const criteria = ats.criteria || [];
+                        if (!criteria.length) return '';
+                        const rows = criteria.map(c =>
+                            `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--border);">
+                                <span style="font-size:0.85rem;">${c.passed ? '✅' : '❌'}</span>
+                                <span style="font-size:0.82rem;font-weight:600;flex:1;">${escapeHtml(c.label)}</span>
+                                <span style="font-size:0.72rem;color:var(--text2);text-align:right;max-width:55%;">${escapeHtml(c.detail)}</span>
+                                <span style="font-size:0.7rem;color:var(--text2);min-width:2rem;text-align:right;">${c.weight}pts</span>
+                            </div>`
+                        ).join('');
+                        return `<details style="margin-bottom:0.75rem;">
+                            <summary style="cursor:pointer;font-weight:700;padding:0.5rem;background:var(--surface2);border-radius:6px;">🗂 ATS Pre-flight Checks</summary>
+                            <div style="padding:0.5rem 0.25rem;">${rows}</div>
+                        </details>`;
+                    })()}
 
                     <details open style="margin-bottom:0.75rem;">
                         <summary style="cursor:pointer;font-weight:700;padding:0.5rem;background:var(--surface2);border-radius:6px;">🔧 Skills Judge</summary>
@@ -2669,6 +2839,214 @@
                 option.selected = false;
             }
             updateAnalyzerSelectionsFromDropdowns();
+        }
+
+        // ── ATS Checker ──────────────────────────────────────────────────────────
+        async function runAtsCheck() {
+            const resumeText = document.getElementById('ats-resume-input').value.trim();
+            if (!resumeText) { document.getElementById('ats-status').textContent = 'Resume text required.'; return; }
+            const jdText = document.getElementById('ats-jd-input').value.trim();
+            const btn = document.getElementById('ats-run-btn');
+            const status = document.getElementById('ats-status');
+            btn.disabled = true; btn.textContent = 'Checking…';
+            status.textContent = 'Running ATS scan…';
+            try {
+                const resp = await fetch('/ats-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resume_text: resumeText, job_description: jdText })
+                });
+                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${resp.status}`); }
+                const data = await resp.json();
+                status.textContent = '';
+                renderAtsResults(data);
+            } catch (err) {
+                status.textContent = `Error: ${escapeHtml(err.message)}`;
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run ATS Check';
+            }
+        }
+
+        function renderAtsResults(d) {
+            const gradeColor = d.score >= 80 ? 'var(--green)' : d.score >= 60 ? 'var(--amber)' : 'var(--red)';
+            const passed = d.criteria.filter(c => c.passed).length;
+            let html = `
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+                    <div style="font-size:48px;font-weight:800;color:${gradeColor};font-family:var(--font-display);">${d.grade}</div>
+                    <div>
+                        <div style="font-size:24px;font-weight:700;">${d.score}/100</div>
+                        <div style="color:var(--text2);font-size:12px;">${passed} of ${d.criteria.length} criteria passed</div>
+                    </div>
+                </div>`;
+            if (d.issues && d.issues.length) {
+                html += `<div style="margin-bottom:14px;padding:10px 12px;background:var(--red-bg);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius-sm);font-size:12px;">
+                    <strong style="color:var(--red);">Issues to fix:</strong><br>
+                    ${d.issues.map(i => `• ${escapeHtml(i)}`).join('<br>')}
+                </div>`;
+            }
+            html += `<div style="display:flex;flex-direction:column;gap:6px;">`;
+            for (const c of d.criteria) {
+                const icon = c.passed ? '✓' : '✗';
+                const col  = c.passed ? 'var(--green)' : 'var(--red)';
+                html += `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:var(--radius-sm);font-size:12px;">
+                    <span style="color:${col};font-weight:700;flex-shrink:0;">${icon}</span>
+                    <div>
+                        <div style="font-weight:600;">${escapeHtml(c.label)}</div>
+                        ${c.detail ? `<div style="color:var(--text2);margin-top:2px;">${escapeHtml(c.detail)}</div>` : ''}
+                    </div>
+                </div>`;
+            }
+            html += '</div>';
+            document.getElementById('ats-results').innerHTML = html;
+        }
+
+        // ── Career Paths ─────────────────────────────────────────────────────────
+        function loadCpResume() {
+            const sel = document.getElementById('cp-resume-select');
+            const rid = sel.value;
+            if (!rid) return;
+            const resume = Object.values(resumes).find(r => String(r.resume_id) === String(rid));
+            if (resume) document.getElementById('cp-resume-text').value = resume.text || '';
+        }
+
+        async function uploadCpPdf() {
+            const input = document.getElementById('cp-pdf-input');
+            const file = input.files[0];
+            if (!file) return;
+            const status = document.getElementById('cp-status');
+            status.textContent = 'Extracting PDF…';
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                const resp = await fetch('/extract-pdf', { method: 'POST', body: form });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                document.getElementById('cp-resume-text').value = data.text || '';
+                document.getElementById('cp-resume-select').value = '';
+                status.textContent = data.name ? `Loaded: ${data.name}` : 'PDF loaded.';
+            } catch (err) { status.textContent = `PDF error: ${err.message}`; }
+        }
+
+        async function uploadAtsPdf() {
+            const input = document.getElementById('ats-pdf-input');
+            const file = input.files[0];
+            if (!file) return;
+            const status = document.getElementById('ats-status');
+            status.textContent = 'Extracting PDF…';
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                const resp = await fetch('/extract-pdf', { method: 'POST', body: form });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                document.getElementById('ats-resume-input').value = data.text || '';
+                document.getElementById('ats-resume-select').value = '';
+                status.textContent = data.name ? `Loaded: ${data.name}` : 'PDF loaded.';
+            } catch (err) { status.textContent = `PDF error: ${err.message}`; }
+        }
+
+        function loadAtsResume() {
+            const sel = document.getElementById('ats-resume-select');
+            const rid = sel.value;
+            if (!rid) return;
+            const resume = Object.values(resumes).find(r => String(r.resume_id) === String(rid));
+            if (resume) document.getElementById('ats-resume-input').value = resume.text || '';
+        }
+
+        async function findCareerPaths() {
+            const resumeText = document.getElementById('cp-resume-text').value.trim();
+            if (!resumeText) { document.getElementById('cp-status').textContent = 'Resume text required.'; return; }
+            const btn = document.getElementById('cp-run-btn');
+            const status = document.getElementById('cp-status');
+            btn.disabled = true; btn.textContent = 'Matching…';
+            status.textContent = 'Scoring against 20 income paths…';
+            try {
+                const resp = await fetch('/skill-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resume_text: resumeText })
+                });
+                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${resp.status}`); }
+                const data = await resp.json();
+                status.textContent = '';
+                renderCareerPaths(data.matches, resumeText);
+            } catch (err) {
+                status.textContent = `Error: ${escapeHtml(err.message)}`;
+            } finally {
+                btn.disabled = false; btn.textContent = 'Find Matches';
+            }
+        }
+
+        function renderCareerPaths(matches, resumeText) {
+            if (!matches || !matches.length) {
+                document.getElementById('cp-results').innerHTML = '<div style="color:var(--text3);text-align:center;padding:40px;">No matches found.</div>';
+                return;
+            }
+            const DEMAND_COLOR = { high: 'var(--green)', medium: 'var(--amber)', low: 'var(--text2)' };
+            let html = '';
+            for (const m of matches) {
+                const pct = Math.round(m.match_pct);
+                const barColor = pct >= 70 ? 'var(--green)' : pct >= 45 ? 'var(--amber)' : 'var(--red)';
+                const demandCol = DEMAND_COLOR[m.market_demand] || 'var(--text2)';
+                html += `<div class="card" style="margin-bottom:14px;">
+                    <div class="card-header" style="cursor:pointer;" onclick="toggleCpDetail('cp-detail-${m.id}')">
+                        <div style="flex:1;">
+                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                                <h3 class="card-title" style="margin:0;">${escapeHtml(m.title)}</h3>
+                                <span style="font-size:11px;color:var(--text2);background:var(--surface3);padding:2px 8px;border-radius:20px;">${escapeHtml(m.category.replace('_',' '))}</span>
+                                <span style="font-size:11px;color:${demandCol};margin-left:auto;">⬤ ${m.market_demand} demand</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <div style="flex:1;height:6px;background:var(--surface3);border-radius:99px;overflow:hidden;">
+                                    <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;"></div>
+                                </div>
+                                <span style="font-size:14px;font-weight:700;color:${barColor};min-width:36px;">${pct}%</span>
+                                <span style="font-size:12px;color:var(--text2);">${escapeHtml(m.income_range)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="cp-detail-${m.id}" style="display:none;padding:0 16px 14px;">
+                        <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">${escapeHtml(m.description)}</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">You Have</div>
+                                ${m.matched_skills.length ? m.matched_skills.map(s=>`<span style="display:inline-block;font-size:11px;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:4px;margin:2px;">${escapeHtml(s)}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">none matched</span>'}
+                            </div>
+                            <div>
+                                <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Gaps</div>
+                                ${m.missing_required.length ? m.missing_required.map(s=>`<span style="display:inline-block;font-size:11px;background:var(--red-bg);color:var(--red);padding:2px 7px;border-radius:4px;margin:2px;">${escapeHtml(s)}</span>`).join('') : '<span style="color:var(--green);font-size:12px;">✓ No required gaps</span>'}
+                            </div>
+                        </div>
+                        ${m.starter_actions && m.starter_actions.length ? `
+                        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">30-Day Starter Plan</div>
+                        <ol style="padding-left:18px;font-size:12px;color:var(--text2);line-height:1.7;">
+                            ${m.starter_actions.map(a=>`<li>${escapeHtml(a)}</li>`).join('')}
+                        </ol>` : ''}
+                    </div>
+                </div>`;
+            }
+            document.getElementById('cp-results').innerHTML = html;
+        }
+
+        function toggleCpDetail(id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Populate resume dropdowns in ATS Checker and Career Paths
+        function populateCpResumeDropdown() {
+            const items = Object.values(resumes);
+            for (const selId of ['cp-resume-select', 'ats-resume-select']) {
+                const sel = document.getElementById(selId);
+                if (!sel) continue;
+                sel.innerHTML = '<option value="">— choose saved resume —</option>';
+                items.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.resume_id || '';
+                    opt.textContent = `${r.name || 'Unknown'} — ${r.title || ''}`;
+                    sel.appendChild(opt);
+                });
+            }
         }
 
     </script>
