@@ -316,5 +316,3 @@ PDF-aware: pypdf and pdfminer strip bullet characters (•, ▪) and can collaps
 - **Section headings**: broad word-presence match + ALL-CAPS line detection (not strict line-boundary regex)
 - **Bullet points**: counts explicit bullet chars AND proxy bullet lines (medium-length lines starting with a capital letter or action verb)
 - **Quantification**: matches numbers with `+` suffix (`12+`, `5,000+`), domain nouns (`metrics`, `datasets`, `tests`), and standard units
-
----
