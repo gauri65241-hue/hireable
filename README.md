@@ -110,13 +110,61 @@ Criteria ranked in order:
 
 `deepseek-r1:14b` passed all 6 judges on all test pairs and correctly identified the wrong-fit case. Its chain-of-thought reasoning style (`<think>` tokens) produces more reliable structured output than instruction-tuned models that tend to hallucinate JSON fields or collapse scores to round numbers.
 
+### Model by available RAM
+
+| RAM | Recommended model | Pull command | Notes |
+|-----|------------------|--------------|-------|
+| 16 GB+ | `deepseek-r1:14b` | `ollama pull deepseek-r1:14b` | Default. Best JSON reliability across all 6 judges. |
+| 8 GB | `qwen2.5:7b` | `ollama pull qwen2.5:7b` | Best structured-output at 7B. ~4.5 GB model weight. Expect occasional judge parse retries. |
+| 8 GB (alt) | `deepseek-r1:7b` | `ollama pull deepseek-r1:7b` | Same model family as default, half the weight. CoT style helps JSON reliability. |
+| 4–8 GB | `phi4-mini` | `ollama pull phi4-mini` | ~2.5 GB. Reliable JSON but weaker on seniority and impact discrimination. |
+| <4 GB | `llama3.2:3b` | `ollama pull llama3.2:3b` | Lightweight fallback. Pipeline retries compensate for parse failures. |
+
+### How to change the model
+
+The default is **`deepseek-r1:14b`**. If your RAM changes — upgrading hardware, moving to a different machine, or needing a lighter model — follow these steps:
+
+**Step 1 — Pull the new model**
+```bash
+ollama pull <model-name>    # e.g. ollama pull qwen2.5:7b
+ollama serve
+```
+
+**Step 2 — Start the server** (if not already running)
+```bash
+uvicorn linkedin_api:app --reload
+```
+
+**Step 3 — Switch model in the dashboard**
+
+Open `http://localhost:8000` → go to the **Analyzer** tab → find the model selector dropdown → type the new model name (e.g. `qwen2.5:7b`). The dropdown accepts free text — no code changes required.
+
+**Step 4 — Run analysis as normal**
+
+The selected model applies to that session. The default shown in the dropdown is always `deepseek-r1:14b` on page load — you only need to change it if you're not running the default.
+
+> ATS Checker and Career Paths use no LLM and require no model changes — they work regardless of what Ollama is running.
+
+### Pipeline timing (approximate, local Ollama on M-series Mac)
+
+| Feature | Model | Time |
+|---------|-------|------|
+| Full 5-judge + coach pipeline | deepseek-r1:14b | 3–5 min |
+| Full 5-judge + coach pipeline | qwen2.5:7b | 1.5–3 min |
+| Tailored resume generation | deepseek-r1:14b | 45–90 sec |
+| Interview prep generation | deepseek-r1:14b | 30–60 sec |
+| ATS Checker | — (no LLM) | < 1 sec |
+| Career Paths skill match | — (no LLM) | < 1 sec |
+
+Times vary with resume/JD length and hardware. ATS Checker and Career Paths are instant regardless of RAM or Ollama state.
+
 To run the benchmark yourself:
 
 ```bash
 python benchmark_models.py
 ```
 
-Results are written to `benchmark_results.json`. The pipeline uses whatever model you configure in `.env` — defaults to `deepseek-r1:14b`.
+Results are written to `benchmark_results.json`. The pipeline uses whatever model you configure in the dashboard — defaults to `deepseek-r1:14b`.
 
 ---
 
@@ -316,3 +364,4 @@ PDF-aware: pypdf and pdfminer strip bullet characters (•, ▪) and can collaps
 - **Section headings**: broad word-presence match + ALL-CAPS line detection (not strict line-boundary regex)
 - **Bullet points**: counts explicit bullet chars AND proxy bullet lines (medium-length lines starting with a capital letter or action verb)
 - **Quantification**: matches numbers with `+` suffix (`12+`, `5,000+`), domain nouns (`metrics`, `datasets`, `tests`), and standard units
+

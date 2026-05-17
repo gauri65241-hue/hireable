@@ -132,15 +132,13 @@ async def benchmark_model(model: str) -> list:
     print(f"  MODEL: {model}")
     print(f"{'='*60}")
     tasks = [benchmark_one(model, r, j) for r, j in PAIRS]
-    results = []
-    for t in tasks:
-        r = await t
+    results = await asyncio.gather(*tasks)
+    for r in results:
         status = "✅" if r["success"] else "❌"
         score  = r["scores"].get("overall", 0) if r["success"] else 0
         print(f"  {status} {r['resume'][:15]} × {r['job'][:35]} | "
               f"overall={score:.0%} | {r['elapsed_s']}s | judges={r['judges_passed']}/6")
-        results.append(r)
-    return results
+    return list(results)
 
 
 # ── Aggregate per-model stats ─────────────────────────────────────────────────

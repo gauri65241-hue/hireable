@@ -294,6 +294,22 @@ def _experience_stub(resume_years: str, job_years: str) -> float:
     return 0.0
 
 
+@app.get("/ollama-models")
+async def list_ollama_models():
+    """Return installed Ollama models, excluding embedding-only models."""
+    import httpx
+    EMBEDDING_MODELS = {"nomic-embed-text", "nomic-embed", "mxbai-embed-large", "all-minilm", "bge-m3"}
+    try:
+        tags = httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=3).json()
+        models = [
+            m["name"] for m in tags.get("models", [])
+            if m["name"].split(":")[0] not in EMBEDDING_MODELS
+        ]
+        return {"models": models, "default": "deepseek-r1:14b"}
+    except Exception as e:
+        return {"models": ["deepseek-r1:14b"], "default": "deepseek-r1:14b", "error": str(e)}
+
+
 @app.post("/match_job")
 async def match_job(req: MatchJobRequest):
     """CLI-style composite score: TF-IDF 40% + skills Jaccard 40% + exp stub 20%."""
@@ -384,8 +400,11 @@ async def add_resume(req: AddResumeRequest):
     existing_nums = [parse_num(r.get('resume_id', 0)) for r in resumes_data]
     next_num = max(existing_nums) + 1 if existing_nums else 1
     new_id = f"resume_{next_num:03d}"
+    file_is_new = not os.path.isfile(RESUMES_CSV) or os.path.getsize(RESUMES_CSV) == 0
     with open(RESUMES_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
+        if file_is_new:
+            writer.writerow(['resume_id', 'name', 'title', 'experience_years', 'skills', 'text'])
         writer.writerow([new_id, req.name, req.title, req.experience_years, req.skills, req.text])
     resumes_data = load_resumes(RESUMES_CSV)
     return {"success": True, "id": new_id}
@@ -396,8 +415,11 @@ async def add_job(req: AddJobRequest):
     existing_ids = [int(j.get('job_id', 0)) for j in jobs_data if str(j.get('job_id', '')).isdigit()]
     new_id = max(existing_ids) + 1 if existing_ids else 1
     clean_desc = strip_html(req.description)
+    file_is_new = not os.path.isfile(JOBS_CSV) or os.path.getsize(JOBS_CSV) == 0
     with open(JOBS_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
+        if file_is_new:
+            writer.writerow(['job_id', 'title', 'company', 'experience_required', 'skills_required', 'description'])
         writer.writerow([new_id, req.title, req.company, req.experience_required, req.skills_required, clean_desc])
     jobs_data = load_jobs(JOBS_CSV)
     return {"success": True, "id": new_id}

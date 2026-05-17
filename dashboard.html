@@ -1217,8 +1217,36 @@
         let currentResults = [];
 
         // Initialize
+        async function populateOllamaModels() {
+            const select = document.getElementById('ollama-model-select');
+            const modelInput = document.getElementById('model-name-input');
+            try {
+                const data = await api('/ollama-models');
+                const models = data.models || [];
+                const defaultModel = data.default || 'deepseek-r1:14b';
+                select.innerHTML = '';
+                models.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name + (name === defaultModel ? ' (default)' : '');
+                    if (name === defaultModel) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                if (models.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = defaultModel;
+                    opt.textContent = defaultModel + ' (default)';
+                    select.appendChild(opt);
+                }
+                modelInput.value = select.value;
+            } catch (e) {
+                console.warn('populateOllamaModels failed:', e);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             refreshAll();
+            populateOllamaModels();
 
             // Resume form submit handler
             document.getElementById('resume-form').addEventListener('submit', async (e) => {
@@ -2770,15 +2798,13 @@
         function populateAnalyzerDropdowns() {
             const resumeSelect = document.getElementById('analyzer-resume-select');
             const jobSelect = document.getElementById('analyzer-job-select');
-            
-            // Populate resumes dropdown
-            resumeSelect.innerHTML = resumes.map(r => 
-                `<option value="${r.resume_id}">${escapeHtml(r.name)} - ${escapeHtml(r.title)}</option>`
+
+            resumeSelect.innerHTML = Object.values(resumes).map(r =>
+                `<option value="${r.resume_id}">${escapeHtml(r.name)} - ${escapeHtml(r.title || '')}</option>`
             ).join('');
-            
-            // Populate jobs dropdown
-            jobSelect.innerHTML = jobs.map(j => 
-                `<option value="${j.job_id}">${escapeHtml(j.title)} @ ${escapeHtml(j.company)}</option>`
+
+            jobSelect.innerHTML = Object.values(jobs).map(j =>
+                `<option value="${j.job_id}">${escapeHtml(j.title || 'Untitled')} @ ${escapeHtml(j.company || '')}</option>`
             ).join('');
         }
 
