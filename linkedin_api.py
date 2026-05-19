@@ -98,8 +98,8 @@ class BatchSummaryRequest(BaseModel):
     model: str = "meta-llama/llama-3.1-8b-instruct:free"
 
 class FeedbackRequest(BaseModel):
-    resume_id: int
-    job_id: int
+    resume_id: str
+    job_id: str
     got_interview: bool
     is_golden: bool = False
 
@@ -251,7 +251,7 @@ async def health_check():
 # Week 3: REST conversion of linkedin_cli_v1.py composite score logic
 
 class MatchJobRequest(BaseModel):
-    resume_id: int
+    resume_id: str
     job_description: str
 
 
@@ -324,7 +324,7 @@ async def match_job(req: MatchJobRequest):
     from linkedin_cli_v1 import load_resumes
     base = os.path.dirname(os.path.abspath(__file__))
     resumes = load_resumes(os.path.join(base, "data", "resumes.csv"))
-    resume = next((r for r in resumes if int(r["resume_id"]) == req.resume_id), None)
+    resume = next((r for r in resumes if str(r["resume_id"]) == str(req.resume_id)), None)
     if not resume:
         raise HTTPException(status_code=404, detail=f"resume_id {req.resume_id} not found")
 
@@ -345,14 +345,14 @@ async def match_job(req: MatchJobRequest):
 
 
 @app.post("/match_job_by_id")
-async def match_job_by_id(resume_id: int, job_id: int):
+async def match_job_by_id(resume_id: str, job_id: str):
     """Match resume against a job from data/jobs.csv by ID."""
     from linkedin_cli_v1 import load_resumes, load_jobs
     base = os.path.dirname(os.path.abspath(__file__))
     resumes = load_resumes(os.path.join(base, "data", "resumes.csv"))
     jobs = load_jobs(os.path.join(base, "data", "jobs.csv"))
-    resume = next((r for r in resumes if int(r["resume_id"]) == resume_id), None)
-    job = next((j for j in jobs if int(j["job_id"]) == job_id), None)
+    resume = next((r for r in resumes if str(r["resume_id"]) == str(resume_id)), None)
+    job = next((j for j in jobs if str(j["job_id"]) == str(job_id)), None)
     if not resume:
         raise HTTPException(status_code=404, detail=f"resume_id {resume_id} not found")
     if not job:
@@ -891,14 +891,13 @@ async def list_results(limit: int = 50, offset: int = 0):
     # Primary: SQLite
     try:
         db_rows = run_db.list_runs(limit=limit, offset=offset)
-        if db_rows:
-            # Enrich rows where candidate_name/job_title were not stored (pre-fix runs)
-            for row in db_rows:
-                if not row.get("resume_name"):
-                    row["resume_name"] = match_resume(row.get("resume_snippet", ""))
-                if not row.get("job_title"):
-                    row["job_title"] = match_job(row.get("job_snippet", ""))
-            return db_rows
+        # Enrich rows where candidate_name/job_title were not stored (pre-fix runs)
+        for row in db_rows:
+            if not row.get("resume_name"):
+                row["resume_name"] = match_resume(row.get("resume_snippet", ""))
+            if not row.get("job_title"):
+                row["job_title"] = match_job(row.get("job_snippet", ""))
+        return db_rows
     except Exception as db_err:
         logger.warning(f"SQLite list_runs failed, falling back to JSON files: {db_err}")
 

@@ -1157,7 +1157,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button onclick="loadResults()" class="btn">Refresh Results</button>
+                        <button onclick="currentResults=[]; loadResults()" class="btn">Refresh Results</button>
                     </div>
 
                     <!-- Results table (full width) -->
@@ -1898,7 +1898,7 @@
             );
 
             list.innerHTML = items.map(r => {
-                const checked = selectedResumes.has(+r.resume_id);
+                const checked = selectedResumes.has(String(r.resume_id));
                 return `
                     <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleResume(${r.resume_id}, this)">
                         <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();">
@@ -1911,7 +1911,7 @@
         }
 
         function toggleResume(id, el) {
-            const rid = +id;
+            const rid = String(id);
             if (selectedResumes.has(rid)) selectedResumes.delete(rid);
             else selectedResumes.add(rid);
             renderResumes();
@@ -1928,7 +1928,7 @@
             );
 
             list.innerHTML = items.map(j => {
-                const checked = selectedJobs.has(+j.job_id);
+                const checked = selectedJobs.has(String(j.job_id));
                 const applied = j.applied;
                 const urlAttr = j.source_url ? `href="${escapeHtml(j.source_url)}" target="_blank"` : '';
                 return `
@@ -1951,7 +1951,7 @@
         }
 
         function toggleJob(id, el) {
-            const jid = +id;
+            const jid = String(id);
             if (selectedJobs.has(jid)) selectedJobs.delete(jid);
             else selectedJobs.add(jid);
             renderJobs();
@@ -3200,18 +3200,26 @@
             const resumeSelect = document.getElementById('analyzer-resume-select');
             const jobSelect = document.getElementById('analyzer-job-select');
 
-            resumeSelect.innerHTML = Object.values(resumes).map(r =>
-                `<option value="${r.resume_id}">${escapeHtml(r.name)} - ${escapeHtml(r.title || '')}</option>`
-            ).join('');
+            const firstLoad = selectedResumes.size === 0 && selectedJobs.size === 0;
 
-            jobSelect.innerHTML = Object.values(jobs).map(j =>
-                `<option value="${j.job_id}">${escapeHtml(j.title || 'Untitled')} @ ${escapeHtml(j.company || '')}</option>`
-            ).join('');
+            resumeSelect.innerHTML = Object.values(resumes).map(r => {
+                const sel = firstLoad || selectedResumes.has(String(r.resume_id)) ? ' selected' : '';
+                return `<option value="${r.resume_id}"${sel}>${escapeHtml(r.name)} - ${escapeHtml(r.title || '')}</option>`;
+            }).join('');
 
-            // Auto-select all options so the user doesn't have to click each item
-            for (const opt of resumeSelect.options) opt.selected = true;
-            for (const opt of jobSelect.options)   opt.selected = true;
-            updateAnalyzerSelectionsFromDropdowns();
+            jobSelect.innerHTML = Object.values(jobs).map(j => {
+                const sel = firstLoad || selectedJobs.has(String(j.job_id)) ? ' selected' : '';
+                return `<option value="${j.job_id}"${sel}>${escapeHtml(j.title || 'Untitled')} @ ${escapeHtml(j.company || '')}</option>`;
+            }).join('');
+
+            // On first load auto-select all; on tab return restore from Sets
+            if (firstLoad) {
+                for (const opt of resumeSelect.options) { opt.selected = true; selectedResumes.add(opt.value); }
+                for (const opt of jobSelect.options)   { opt.selected = true; selectedJobs.add(opt.value); }
+            }
+
+            renderAnalyzerSelections();
+            updateAnalyzerCounts();
         }
 
         function updateAnalyzerSelectionsFromDropdowns() {
@@ -3229,12 +3237,6 @@
             for (const option of jobSelect.selectedOptions) {
                 selectedJobs.add(option.value);
             }
-            
-            // Debug: Log after selection update
-            console.log('DEBUG: After dropdown update - selectedResumes.size =', selectedResumes.size);
-            console.log('DEBUG: After dropdown update - selectedJobs.size =', selectedJobs.size);
-            console.log('DEBUG: After dropdown update - selectedResumes =', [...selectedResumes]);
-            console.log('DEBUG: After dropdown update - selectedJobs =', [...selectedJobs]);
             
             // Refresh displays
             renderAnalyzerSelections();

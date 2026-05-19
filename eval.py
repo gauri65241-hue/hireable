@@ -17,7 +17,7 @@ Usage:
 Requires:
     - data/labels.csv populated with resume_id, job_id, fit_label (1=good fit, 0=bad fit)
     - data/resumes.csv and data/jobs.csv to resolve IDs to text
-    - results/pipeline/*.json from prior pipeline runs
+    - data/runs.db (SQLite) populated by prior pipeline runs
 
 How to add labels:
     Option A: POST /feedback with resume_id, job_id, got_interview=true/false
@@ -26,7 +26,6 @@ How to add labels:
 
 import argparse
 import csv
-import json
 import re
 import sys
 from pathlib import Path
@@ -35,9 +34,6 @@ BASE_DIR = Path(__file__).parent
 LABELS_CSV = BASE_DIR / "data" / "labels.csv"
 RESUMES_CSV = BASE_DIR / "data" / "resumes.csv"
 JOBS_CSV = BASE_DIR / "data" / "jobs.csv"
-PIPELINE_DIR = BASE_DIR / "results" / "pipeline"
-
-
 # ── Loaders ───────────────────────────────────────────────────────────────────
 
 def load_csv(path: Path) -> list[dict]:
@@ -48,17 +44,21 @@ def load_csv(path: Path) -> list[dict]:
 
 
 def load_pipeline_results() -> list[dict]:
+    """Load all pipeline runs from SQLite (data/runs.db)."""
+    import sys
+    sys.path.insert(0, str(BASE_DIR))
+    from db import list_runs
+    rows = list_runs(limit=1000)
     results = []
-    if not PIPELINE_DIR.exists():
-        return results
-    for p in sorted(PIPELINE_DIR.glob("*.json")):
-        try:
-            with open(p, encoding="utf-8") as f:
-                data = json.load(f)
-            data["_file"] = p.name
-            results.append(data)
-        except Exception as e:
-            print(f"  Warning: could not read {p.name}: {e}")
+    for row in rows:
+        pr = row.get("pipeline_data") or {}
+        results.append({
+            "result_id":       row["result_id"],
+            "pipeline_result": pr,
+            "resume_text":     row.get("resume_snippet", ""),
+            "job_description": row.get("job_snippet", ""),
+            "_file":           row["result_id"],
+        })
     return results
 
 
@@ -543,7 +543,7 @@ def main():
     print(f"  Pipeline files:  {len(pipeline_results)}")
 
     if not pipeline_results:
-        print("\n  No pipeline results found in results/pipeline/.")
+        print("\n  No pipeline results found in data/runs.db — run the analyzer first.")
         print("  Run the pipeline first via the dashboard.")
         sys.exit(0)
 
