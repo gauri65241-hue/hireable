@@ -27,8 +27,19 @@ Monitor API status, database connectivity, and LLM service health in real time.
 
 ![System Health](assets/screenshot_system_health.png)
 
+### Jobs — multiple import modes
+Add jobs four ways:
+- **Manual entry** — paste fields directly
+- **URL Fetch** — paste any job board URL; scrapes the full JD (up to 15k chars), strips page chrome, preserves all role content. Source URL saved alongside the job.
+- **Bulk Import** — paste multiple URLs, one per line; fetches sequentially with per-row live status. LinkedIn URLs are flagged and skipped (require auth).
+- **Quick Paste** — copy the full JD text from anywhere and paste it; LLM extracts structured fields without any HTTP fetch.
+
+Each saved job shows an **Applied?** toggle that persists to disk.
+
 ### Analyzer — 5-judge LLM pipeline
 Score a resume against a job description across 5 independent dimensions. Each judge runs a structured prompt, parses the JSON response, and returns a score + gap list. All five run concurrently before the coach synthesises.
+
+Batch mode deduplicates jobs by title+company before running — duplicate imports only run once.
 
 ![Results Table](assets/screenshot_results_table.png)
 
@@ -43,6 +54,9 @@ Score a resume against a job description across 5 independent dimensions. Each j
 ![Tailored Resume](assets/screenshot_tailored_resume.png)
 
 ![Interview Prep](assets/screenshot_interview_prep.png)
+
+### Results — full judge detail
+Each result shows per-judge breakdowns (skill rows, responsibility rows, seniority signals, relevancy mapping, impact quantification) loaded from SQLite. Three outcome checkboxes per result: **Applied?** (marks the job), **Got the interview?**, **Got the job?** — the latter two feed back into judge weight calibration.
 
 ### ATS Checker — instant structural scan
 9-criterion heuristic check with no LLM. Results in under a second. PDF-aware: correctly handles text where pypdf/pdfminer strips bullet characters and collapses section headings.
@@ -89,8 +103,8 @@ Resume + Job Description
 │  gap_warning     → flag real gaps      │
 └────────────────────────────────────────┘
          │
-         ├─► Tailored resume  (results/tailored_resumes/)
-         └─► Interview prep   (results/interview_prep/)
+         ├─► Tailored resume  (saved to SQLite tailored_text column)
+         └─► Interview prep   (generated on demand from SQLite run data)
 ```
 
 Each judge runs a structured prompt against the LLM, parses the JSON response, and returns a score + reasoning. The pipeline runs all 5 judges concurrently (asyncio) before the coach synthesises across them.
@@ -238,13 +252,19 @@ For instant checks without running the full LLM pipeline:
 | `POST /analyze` | Run all 5 judges + coach on a resume-job pair |
 | `POST /ats-check` | Instant ATS scan — no LLM, 9 criteria |
 | `POST /skill-match` | Score resume skills against 20 income paths |
-| `POST /edit_resume` | Apply coach recommendations → tailored resume |
-| `POST /interview_prep` | Generate role-specific questions + model answers |
-| `GET /list_results` | List all saved pipeline results |
-| `GET /resumes` | List resumes in data store |
-| `GET /jobs` | List jobs in data store |
+| `POST /edit_resume` | Apply coach recommendations → tailored resume (saved to SQLite) |
+| `POST /interview_prep` | Generate role-specific questions + model answers from SQLite run |
+| `GET /list_results` | List all saved pipeline results from SQLite |
+| `DELETE /results/{id}` | Delete a result from SQLite |
+| `GET /resumes` | List resumes |
+| `POST /resumes` | Save a new resume |
+| `GET /jobs` | List jobs |
+| `POST /jobs` | Save a new job |
+| `PATCH /jobs/{id}/applied` | Toggle applied status on a job |
+| `POST /fetch-job-url` | Scrape full JD from URL (up to 15k chars, Playwright fallback) |
+| `POST /parse-jd-text` | Parse pasted JD text into structured fields via LLM |
 | `POST /extract-pdf` | Extract text + structured fields from PDF resume |
-| `POST /fetch-job-url` | Scrape and clean job description from URL |
+| `POST /summarize_result` | Generate AI summary for a saved result |
 
 Auto-generated docs at `http://localhost:8000/docs` when server is running.
 
@@ -269,23 +289,17 @@ git update-index --skip-worktree data/resumes.csv data/jobs.csv data/labels.csv
 
 ---
 
-## Results structure
+## Persistence
 
-All outputs are saved locally and never committed:
+All run data is stored in SQLite (`data/runs.db`) — no results folder. The DB is created automatically on first server start and is gitignored.
 
-```
-results/
-├── pipeline/           # Full judge pipeline JSON per run
-├── skills_judge/       # Individual judge outputs
-├── experience_judge/
-├── seniority_judge/
-├── relevancy_judge/
-├── impact_judge/
-├── coach_judge/
-├── tailored_resumes/   # Generated .txt files
-├── interview_prep/     # Generated .json files
-└── summary/            # Score summaries
-```
+| What | Where |
+|------|-------|
+| Pipeline results (all 5 judges + coach) | `data/runs.db` → `runs` table |
+| Tailored resume text | `runs.tailored_text` column |
+| ATS validation before/after | `runs.ats_validation_json` column |
+| Outcome feedback (interview / job) | `data/outcomes.jsonl` |
+| Judge calibration feedback | `data/judge_feedback.jsonl` |
 
 ---
 
