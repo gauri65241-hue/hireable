@@ -45,7 +45,9 @@ def load_jobs(csv_path: str) -> List[Dict[str, Any]]:
                 'company': str(row.get('company', '')),
                 'experience_required': str(row.get('experience_required', '')),
                 'skills_required': str(row.get('skills_required', '')),
-                'description': str(row.get('description', ''))
+                'description': str(row.get('description', '')),
+                'source_url': str(row.get('source_url', '')),
+                'applied': row.get('applied', '0') == '1',
             }
             jobs.append(job)
         

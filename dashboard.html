@@ -565,6 +565,9 @@
             font-weight: 600;
             font-size: 13px;
             margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .select-item-meta {
@@ -885,9 +888,9 @@
                         <p>Browse job postings, add new positions, and manage your job database.</p>
                     </div>
                     <div class="page-toolbar">
-                        <div style="background: var(--surface2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
-                            <label style="font-size: 11px; color: var(--text); margin-bottom: 8px; display: block; font-weight: 600;">Filter Jobs</label>
-                            <input id="job-filter" placeholder="Filter by company, role, or ID" oninput="renderJobs()" class="field" style="margin: 0; width: 100%; background: var(--surface3); border-color: var(--border2);">
+                        <div style="background:var(--surface2);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);">
+                            <label style="font-size:11px;color:var(--text);margin-bottom:8px;display:block;font-weight:600;">Filter Jobs</label>
+                            <input id="job-filter" placeholder="Filter by company, role, or ID" oninput="renderJobs()" class="field" style="margin:0;width:100%;background:var(--surface3);border-color:var(--border2);">
                         </div>
                         <div>
                             <button class="btn btn-secondary" onclick="setChecks('job-check', true)">Select All</button>
@@ -895,45 +898,103 @@
                         </div>
                     </div>
                     <div class="grid two">
+                        <!-- Left: Add Job (multi-mode) -->
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Add Job</h3>
+                                <div style="display:flex;gap:6px;">
+                                    <button id="tab-manual" class="btn btn-sm" onclick="setJobInputMode('manual')">Manual</button>
+                                    <button id="tab-url"    class="btn btn-sm btn-secondary" onclick="setJobInputMode('url')">URL Fetch</button>
+                                    <button id="tab-bulk"   class="btn btn-sm btn-secondary" onclick="setJobInputMode('bulk')">Bulk URLs</button>
+                                    <button id="tab-paste"  class="btn btn-sm btn-secondary" onclick="setJobInputMode('paste')">Quick Paste</button>
+                                </div>
                             </div>
-                            <form id="job-form">
-                                <div class="field">
-                                    <label>Company</label>
-                                    <input id="job-company" placeholder="Google">
-                                </div>
-                                <div class="field">
-                                    <label>Job Title</label>
-                                    <input id="job-title" placeholder="Senior ML Engineer">
-                                </div>
-                                <div class="field">
-                                    <label>Experience Required</label>
-                                    <input id="job-exp" placeholder="4+ years">
-                                </div>
-                                <div class="field">
-                                    <label>Skills Required</label>
-                                    <input id="job-skills" placeholder="Python, FastAPI, RAG">
-                                </div>
-                                <div class="field">
-                                    <label>Fetch from URL</label>
-                                    <div style="display:flex;gap:8px;align-items:center;">
-                                        <input id="job-url-input" type="url" placeholder="https://jobs.greenhouse.io/..." style="flex:1;">
-                                        <button type="button" class="btn btn-secondary" style="white-space:nowrap;font-size:12px;" onclick="fetchJobFromURL()">Fetch JD</button>
-                                    </div>
-                                    <span id="job-url-status" class="hint" style="display:block;margin-top:4px;"></span>
-                                </div>
-                                <div class="field">
-                                    <label>Job Description</label>
-                                    <textarea id="job-description" rows="8" placeholder="Paste full job description here, or fetch from URL above..."></textarea>
-                                </div>
-                                <div class="page-toolbar" style="margin-top: 0;">
+
+                            <!-- MODE: Manual -->
+                            <form id="job-form" onsubmit="addJobManual(event)" style="display:block;">
+                                <div class="field"><label>Company</label>
+                                    <input id="job-company" placeholder="Google"></div>
+                                <div class="field"><label>Job Title</label>
+                                    <input id="job-title" placeholder="Senior ML Engineer"></div>
+                                <div class="field"><label>Experience Required</label>
+                                    <input id="job-exp" placeholder="4+ years"></div>
+                                <div class="field"><label>Skills Required</label>
+                                    <input id="job-skills" placeholder="Python, FastAPI, RAG"></div>
+                                <div class="field"><label>Job Description</label>
+                                    <textarea id="job-description" rows="8" placeholder="Paste full job description here…"></textarea></div>
+                                <div class="page-toolbar" style="margin-top:0;">
                                     <span id="job-status" class="hint"></span>
                                     <button type="submit" class="btn">Save Job</button>
                                 </div>
                             </form>
+
+                            <!-- MODE: URL Fetch -->
+                            <div id="mode-url" style="display:none;">
+                                <div class="field">
+                                    <label>Job Posting URL</label>
+                                    <div style="display:flex;gap:8px;align-items:center;">
+                                        <input id="job-url-input" type="url" placeholder="https://jobs.greenhouse.io/…" style="flex:1;">
+                                        <button type="button" class="btn btn-secondary" style="white-space:nowrap;font-size:12px;" onclick="fetchJobFromURL()">Fetch JD</button>
+                                    </div>
+                                    <span id="job-url-status" class="hint" style="display:block;margin-top:4px;"></span>
+                                    <small class="hint" style="display:block;margin-top:4px;color:var(--amber);">⚠️ LinkedIn requires login — use Quick Paste for LinkedIn JDs</small>
+                                </div>
+                                <div class="field"><label>Company</label><input id="url-company"></div>
+                                <div class="field"><label>Job Title</label><input id="url-title"></div>
+                                <div class="field"><label>Experience Required</label><input id="url-exp"></div>
+                                <div class="field"><label>Skills Required</label><input id="url-skills"></div>
+                                <div class="field"><label>Job Description</label>
+                                    <textarea id="url-description" rows="6"></textarea></div>
+                                <div style="display:flex;gap:8px;margin-top:4px;">
+                                    <span id="url-save-status" class="hint" style="flex:1;"></span>
+                                    <button class="btn" onclick="saveURLFetchedJob()">Save Job</button>
+                                </div>
+                            </div>
+
+                            <!-- MODE: Bulk URL Import -->
+                            <div id="mode-bulk" style="display:none;">
+                                <div class="field">
+                                    <label>Job Posting URLs <span class="hint">(one per line)</span></label>
+                                    <textarea id="bulk-urls" rows="8" placeholder="https://jobs.greenhouse.io/company/role-1&#10;https://boards.lever.co/company/role-2&#10;https://linkedin.com/jobs/view/123  ← will be flagged"></textarea>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                                    <button class="btn" onclick="runBulkImport()">Import All</button>
+                                    <span id="bulk-progress" class="hint"></span>
+                                </div>
+                                <div id="bulk-queue" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;"></div>
+                            </div>
+
+                            <!-- MODE: Quick Paste -->
+                            <div id="mode-paste" style="display:none;">
+                                <div class="field">
+                                    <label>Paste Raw Job Description
+                                        <span class="hint" style="margin-left:6px;">— works with LinkedIn, copied text, anything</span>
+                                    </label>
+                                    <textarea id="paste-raw" rows="10" placeholder="Copy the full job posting text from LinkedIn or any site and paste here…"></textarea>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                                    <button class="btn" onclick="parseAndPreviewPaste()">
+                                        <span id="paste-btn-text">Parse &amp; Preview</span>
+                                    </button>
+                                    <span id="paste-status" class="hint"></span>
+                                </div>
+                                <div id="paste-preview" style="display:none;">
+                                    <div class="field"><label>Company</label><input id="paste-company"></div>
+                                    <div class="field"><label>Job Title</label><input id="paste-title"></div>
+                                    <div class="field"><label>Experience Required</label><input id="paste-exp"></div>
+                                    <div class="field"><label>Skills Required</label><input id="paste-skills"></div>
+                                    <div class="field"><label>Source URL <span class="hint">(optional)</span></label><input id="paste-url" placeholder="https://…"></div>
+                                    <div class="field"><label>Job Description</label>
+                                        <textarea id="paste-description" rows="5"></textarea></div>
+                                    <div style="display:flex;gap:8px;margin-top:4px;">
+                                        <span id="paste-save-status" class="hint" style="flex:1;"></span>
+                                        <button class="btn" onclick="savePastedJob()">Save Job</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Right: Job list -->
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Available Jobs</h3>
@@ -941,6 +1002,20 @@
                             </div>
                             <div id="job-list" class="select-list"></div>
                         </div>
+                    </div>
+
+                    <!-- Bookmarklet -->
+                    <div class="card" style="margin-top:16px;">
+                        <div class="card-header">
+                            <h3 class="card-title">🔖 One-Click Bookmarklet</h3>
+                            <span class="hint">Drag the button to your bookmarks bar</span>
+                        </div>
+                        <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+                            While browsing any job page (Greenhouse, Lever, Workable, etc.) click the bookmark to instantly save it here — no copy-paste needed. LinkedIn will silently fail; use Quick Paste for those.
+                        </p>
+                        <a id="bookmarklet-link" class="btn btn-secondary" style="display:inline-block;cursor:grab;" title="Drag me to your bookmarks bar">
+                            📌 Save to hireable
+                        </a>
                     </div>
                 </section>
 
@@ -1277,34 +1352,12 @@
                 }
             });
 
-            // Job form submit handler
-            document.getElementById('job-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const status = document.getElementById('job-status');
-                status.textContent = 'Saving...';
-                try {
-                    const res = await api('/jobs', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            title: document.getElementById('job-title').value,
-                            company: document.getElementById('job-company').value,
-                            experience_required: document.getElementById('job-exp').value,
-                            skills_required: document.getElementById('job-skills').value,
-                            description: document.getElementById('job-description').value
-                        })
-                    });
-                    status.textContent = res.success ? `✅ Saved (ID: ${res.id})` : '❌ Save failed';
-                    if (res.success) {
-                        document.getElementById('job-form').reset();
-                        jobs = await api('/jobs');
-                        renderJobs();
-                        populateAnalyzerDropdowns();
-                    }
-                } catch (err) {
-                    status.textContent = '❌ Error: ' + err.message;
-                }
-            });
+            // Bookmarklet href setup (runs once after DOM ready)
+            (function setupBookmarklet() {
+                const code = `javascript:(function(){fetch('http://localhost:8000/fetch-job-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:location.href})}).then(r=>r.json()).then(d=>{if(!d.job_description){alert('\u274C Could not extract JD \u2014 use Quick Paste');return;}fetch('http://localhost:8000/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:d.title||'Untitled',company:d.company||'Unknown',experience_required:d.experience_required||'',skills_required:d.skills_required||'',description:d.job_description})}).then(r=>r.json()).then(s=>{alert(s.success?('\u2705 Saved: '+(d.title||'Job')+' @ '+(d.company||'?')):'\u274C Save failed')})}).catch(e=>alert('\u274C '+e.message))})()`;
+                const link = document.getElementById('bookmarklet-link');
+                if (link) link.href = code;
+            })();
             
             // Batch analysis event listener
             document.getElementById('run-batch').addEventListener('click', async () => {
@@ -1331,44 +1384,117 @@
                     const tbody = document.getElementById('batch-results');
                     tbody.innerHTML = '';
 
-                    let totalAnalyses = selectedResumes.size * selectedJobs.size;
+                    const JUDGE_METRIC_MAP = {
+                        skills:     'skills_coverage',
+                        experience: 'experience_depth',
+                        seniority:  'seniority_calibration',
+                        relevancy:  'statement_relevancy',
+                        impact:     'impact_quantification',
+                    };
+
+                    // Deduplicate selected jobs by (title, company) — two saved records with
+                    // same title+company (e.g. from double-import) should only run once
+                    const seenJobKeys = new Set();
+                    const dedupedJobIds = [...selectedJobs].filter(jobId => {
+                        const j = jobs.find(j => String(j.job_id) === String(jobId));
+                        if (!j) return false;
+                        const key = `${(j.title || '').trim().toLowerCase()}|||${(j.company || '').trim().toLowerCase()}`;
+                        if (seenJobKeys.has(key)) return false;
+                        seenJobKeys.add(key);
+                        return true;
+                    });
+
+                    const skippedDups = selectedJobs.size - dedupedJobIds.length;
+                    if (skippedDups > 0) {
+                        document.getElementById('batch-status').textContent =
+                            `⚠️ Skipping ${skippedDups} duplicate job(s) with same title+company. Running ${dedupedJobIds.length} unique jobs…`;
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+
+                    let totalAnalyses = selectedResumes.size * dedupedJobIds.length;
                     let completedAnalyses = 0;
-                    
+
                     for (const resumeId of selectedResumes) {
-                        for (const jobId of selectedJobs) {
-                            const resume = resumes.find(r => r.resume_id === resumeId);
-                            const job = jobs.find(j => j.job_id === jobId);
-                            
+                        for (const jobId of dedupedJobIds) {
+                            const resume = resumes.find(r => String(r.resume_id) === String(resumeId));
+                            const job = jobs.find(j => String(j.job_id) === String(jobId));
+
                             if (!resume || !job) continue;
 
-                            // Update progress
                             completedAnalyses++;
                             const progress = Math.round((completedAnalyses / totalAnalyses) * 100);
-                            document.getElementById('batch-status').textContent = `🔍 Analyzing ${resume.name || 'Resume ' + resumeId} vs ${job.title || 'Job ' + jobId} (${completedAnalyses}/${totalAnalyses} - ${progress}%)...`;
+                            document.getElementById('batch-status').textContent = `🔍 Analyzing ${resume.name || 'Resume ' + resumeId} vs ${job.title || 'Job ' + jobId} (${completedAnalyses}/${totalAnalyses} - ${progress}%)…`;
 
                             try {
                                 if (useLLM) {
-                                    const result = await api('/analyze', {
+                                    // Show live chart with all judges pending
+                                    const liveResult = {
+                                        resume_name: resume.name,
+                                        job_title:   job.title,
+                                        match_score: 0,
+                                        metrics: {
+                                            skills_coverage: null, experience_depth: null,
+                                            seniority_calibration: null, statement_relevancy: null,
+                                            impact_quantification: null,
+                                        },
+                                    };
+                                    renderResultChart(liveResult);
+
+                                    const payload = {
+                                        resume_text: resume.text,
+                                        job_description: job.description + " \nRequired Skills: " + job.skills_required,
+                                        use_coach: useCoach,
+                                        llm_models: [model],
+                                        api_key, api_base_url,
+                                        candidate_name: resume.name || '',
+                                        job_title: job.title || '',
+                                    };
+
+                                    // Stream SSE events, updating chart as each judge finishes
+                                    const resp = await fetch('/analyze/stream', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            resume_text: resume.text,
-                                            job_description: job.description + " \nRequired Skills: " + job.skills_required,
-                                            use_coach: useCoach,
-                                            llm_models: [model],
-                                            api_key,
-                                            api_base_url,
-                                            candidate_name: resume.name || '',
-                                            job_title: job.title || '',
-                                        })
+                                        body: JSON.stringify(payload),
                                     });
+                                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-                                    result.resume_name = resume.name;
-                                    result.job_title = job.title;
-                                    result.job_company = job.company;
+                                    const reader = resp.body.getReader();
+                                    const dec = new TextDecoder();
+                                    let buf = '', result = null;
+
+                                    while (true) {
+                                        const { done, value } = await reader.read();
+                                        if (done) break;
+                                        buf += dec.decode(value, { stream: true });
+                                        const lines = buf.split('\n');
+                                        buf = lines.pop();
+                                        for (const line of lines) {
+                                            if (!line.startsWith('data: ')) continue;
+                                            let ev;
+                                            try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+                                            if (ev.event === 'judge') {
+                                                const key = JUDGE_METRIC_MAP[ev.judge];
+                                                if (key) liveResult.metrics[key] = ev.score;
+                                                renderResultChart(liveResult);
+                                            } else if (ev.event === 'coach_start') {
+                                                document.getElementById('chart-card-title').textContent =
+                                                    document.getElementById('chart-card-title').textContent + ' ⏳ Coach…';
+                                            } else if (ev.event === 'complete') {
+                                                result = ev;
+                                                result.resume_name  = resume.name;
+                                                result.job_title    = job.title;
+                                                result.job_company  = job.company;
+                                                renderResultChart(result);
+                                            } else if (ev.event === 'error') {
+                                                throw new Error(ev.detail || 'Stream error');
+                                            }
+                                        }
+                                    }
+
+                                    if (!result) throw new Error('No complete event received');
+
                                     currentResults.push(result);
-                                    
-                                    // Add row to table
                                     const row = document.createElement('tr');
                                     row.innerHTML = `
                                         <td>${escapeHtml(resume.name)}</td>
@@ -1381,16 +1507,14 @@
                                     `;
                                     tbody.appendChild(row);
                                 } else {
-                                    // Simple scoring without LLM
-                                    const score = Math.floor(Math.random() * 40) + 60; // Mock score 60-100
+                                    const score = Math.floor(Math.random() * 40) + 60;
                                     const row = document.createElement('tr');
                                     row.innerHTML = `
                                         <td>${escapeHtml(resume.name)}</td>
                                         <td>${escapeHtml(job.title)}</td>
                                         <td>${escapeHtml(job.company)}</td>
                                         <td><strong>${score}%</strong></td>
-                                        <td>-</td>
-                                        <td>-</td>
+                                        <td>-</td><td>-</td>
                                         <td><button class="btn btn-sm" disabled>No LLM</button></td>
                                     `;
                                     tbody.appendChild(row);
@@ -1434,6 +1558,7 @@
             document.getElementById(viewName).classList.add('active');
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = VIEW_TITLES[viewName] || viewName;
+            if (viewName === 'analyzer') populateAnalyzerDropdowns();
         }
 
         // API helper
@@ -1454,8 +1579,8 @@
                 }
                 const data = await resp.json();
                 document.getElementById('resume-text').value = data.text;
-                if (data.name)   document.getElementById('resume-name').value   = data.name;
-                if (data.title)  document.getElementById('resume-title').value  = data.title;
+                if (data.name)  document.getElementById('resume-name').value  = data.name;
+                if (data.title) document.getElementById('resume-title').value = data.title;
                 if (data.skills) document.getElementById('resume-skills').value = data.skills;
                 status.textContent = `✓ ${data.pages} page${data.pages !== 1 ? 's' : ''} extracted`;
                 status.style.color = 'var(--green)';
@@ -1466,35 +1591,229 @@
             input.value = '';
         }
 
+        // ── Job input mode switcher ──────────────────────────────────────────
+        function setJobInputMode(mode) {
+            ['job-form', 'mode-url', 'mode-bulk', 'mode-paste'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+            const show = mode === 'manual' ? 'job-form' : `mode-${mode}`;
+            const el = document.getElementById(show);
+            if (el) el.style.display = 'block';
+            ['manual','url','bulk','paste'].forEach(m => {
+                const btn = document.getElementById(`tab-${m}`);
+                if (btn) btn.className = m === mode ? 'btn btn-sm' : 'btn btn-sm btn-secondary';
+            });
+        }
+
+        // ── Manual save ──────────────────────────────────────────────────────
+        async function addJobManual(e) {
+            e.preventDefault();
+            const status = document.getElementById('job-status');
+            status.textContent = 'Saving…';
+            try {
+                const res = await api('/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title:               document.getElementById('job-title').value,
+                        company:             document.getElementById('job-company').value,
+                        experience_required: document.getElementById('job-exp').value,
+                        skills_required:     document.getElementById('job-skills').value,
+                        description:         document.getElementById('job-description').value,
+                    })
+                });
+                status.textContent = res.success ? `✅ Saved (ID: ${res.id})` : '❌ Save failed';
+                if (res.success) {
+                    document.getElementById('job-form').reset();
+                    jobs = await api('/jobs');
+                    renderJobs();
+                    populateAnalyzerDropdowns();
+                }
+            } catch (err) { status.textContent = '❌ ' + err.message; }
+        }
+
+        // ── Single URL fetch ─────────────────────────────────────────────────
         async function fetchJobFromURL() {
-            const urlInput = document.getElementById('job-url-input');
+            const url    = document.getElementById('job-url-input').value.trim();
             const status = document.getElementById('job-url-status');
-            const url = urlInput.value.trim();
-            if (!url) { status.textContent = 'Enter a URL first'; status.style.color = 'var(--amber)'; return; }
-            status.textContent = 'Fetching…';
-            status.style.color = 'var(--text2)';
+            if (!url) { status.textContent = 'Enter a URL first'; return; }
+            status.textContent = '⏳ Fetching…';
             try {
                 const resp = await fetch('/fetch-job-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url }),
                 });
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.detail || `HTTP ${resp.status}`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const d = await resp.json();
+                if (!d.job_description) throw new Error('No JD extracted from this URL');
+                document.getElementById('url-company').value     = d.company             || '';
+                document.getElementById('url-title').value       = d.title               || '';
+                document.getElementById('url-exp').value         = d.experience_required || '';
+                document.getElementById('url-skills').value      = d.skills_required     || '';
+                document.getElementById('url-description').value = d.job_description;
+                status.textContent = `✅ Fetched (${d.job_description.length} chars) — review and save`;
+            } catch (e) { status.textContent = `❌ ${e.message}`; }
+        }
+
+        async function saveURLFetchedJob() {
+            const status = document.getElementById('url-save-status');
+            status.textContent = 'Saving…';
+            try {
+                const res = await api('/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title:               document.getElementById('url-title').value,
+                        company:             document.getElementById('url-company').value,
+                        experience_required: document.getElementById('url-exp').value,
+                        skills_required:     document.getElementById('url-skills').value,
+                        description:         document.getElementById('url-description').value,
+                        source_url:          document.getElementById('url-input').value.trim(),
+                    })
+                });
+                status.textContent = res.success ? `✅ Saved (ID: ${res.id})` : '❌ Save failed';
+                if (res.success) { jobs = await api('/jobs'); renderJobs(); populateAnalyzerDropdowns(); }
+            } catch (err) { status.textContent = '❌ ' + err.message; }
+        }
+
+        // ── Bulk URL import ──────────────────────────────────────────────────
+        let bulkImportRunning = false;
+        async function runBulkImport() {
+            if (bulkImportRunning) return;
+            const raw   = document.getElementById('bulk-urls').value;
+            const queue = document.getElementById('bulk-queue');
+            const prog  = document.getElementById('bulk-progress');
+            const importBtn = document.querySelector('[onclick="runBulkImport()"]');
+            const urls  = raw.split('\n').map(u => u.trim()).filter(Boolean);
+            if (!urls.length) return;
+
+            bulkImportRunning = true;
+            if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Importing…'; }
+            queue.innerHTML = '';
+            let done = 0, saved = 0, failed = 0;
+
+            const rows = urls.map((url, i) => {
+                const isLinkedIn = /linkedin\.com/i.test(url);
+                const row = document.createElement('div');
+                row.style.cssText = 'font-size:12px;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:8px;';
+                const label = document.createElement('span');
+                label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);';
+                label.textContent = url.length > 70 ? url.slice(0,67)+'…' : url;
+                const badge = document.createElement('span');
+                badge.style.cssText = 'font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;';
+                if (isLinkedIn) {
+                    badge.textContent = '⛔ LinkedIn — use Quick Paste';
+                    badge.style.color = 'var(--red)';
+                } else {
+                    badge.textContent = '⏳ queued';
+                    badge.style.color = 'var(--text3)';
                 }
-                const data = await resp.json();
-                document.getElementById('job-description').value = data.job_description;
-                if (data.title)               document.getElementById('job-title').value   = data.title;
-                if (data.company)             document.getElementById('job-company').value = data.company;
-                if (data.experience_required) document.getElementById('job-exp').value     = data.experience_required;
-                if (data.skills_required)     document.getElementById('job-skills').value  = data.skills_required;
-                status.textContent = `✓ JD extracted (${data.job_description.length} chars)`;
-                status.style.color = 'var(--green)';
-            } catch (e) {
-                status.textContent = `✗ ${e.message}`;
-                status.style.color = 'var(--red)';
+                row.appendChild(label);
+                row.appendChild(badge);
+                queue.appendChild(row);
+                return { row, badge, url, isLinkedIn };
+            });
+
+            prog.textContent = `0 / ${urls.length}`;
+
+            for (const { row, badge, url, isLinkedIn } of rows) {
+                if (isLinkedIn) { failed++; done++; prog.textContent = `${done} / ${urls.length}`; continue; }
+                badge.textContent = '⏳ fetching…';
+                badge.style.color = 'var(--amber)';
+                try {
+                    const fr = await fetch('/fetch-job-url', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url })
+                    });
+                    const fd = await fr.json();
+                    if (!fd.job_description || fd.job_description.length < 50) throw new Error('No JD extracted');
+                    const sr = await api('/jobs', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title:               fd.title               || 'Untitled',
+                            company:             fd.company             || 'Unknown',
+                            experience_required: fd.experience_required || '',
+                            skills_required:     fd.skills_required     || '',
+                            description:         fd.job_description,
+                            source_url:          url,
+                        })
+                    });
+                    if (!sr.success) throw new Error('Save failed');
+                    badge.textContent = `✅ Saved (ID ${sr.id})`;
+                    badge.style.color = 'var(--green)';
+                    row.style.borderColor = 'var(--green)';
+                    saved++;
+                    // Update job list live after each save
+                    jobs = await api('/jobs');
+                    renderJobs();
+                    populateAnalyzerDropdowns();
+                } catch(err) {
+                    badge.textContent = `❌ ${err.message.slice(0,50)}`;
+                    badge.style.color = 'var(--red)';
+                    row.style.borderColor = 'var(--red)';
+                    failed++;
+                }
+                done++;
+                prog.textContent = `${done} / ${urls.length} — ${saved} saved, ${failed} failed`;
             }
+
+            const liCount = urls.filter(u => /linkedin\.com/i.test(u)).length;
+            prog.textContent = `Done — ${saved} saved, ${failed} failed${liCount ? ` (${liCount} LinkedIn skipped)` : ''}`;
+            bulkImportRunning = false;
+            if (importBtn) { importBtn.disabled = false; importBtn.textContent = 'Import All'; }
+        }
+
+        // ── Quick Paste ──────────────────────────────────────────────────────
+        async function parseAndPreviewPaste() {
+            const raw     = document.getElementById('paste-raw').value.trim();
+            const status  = document.getElementById('paste-status');
+            const btn     = document.getElementById('paste-btn-text');
+            const preview = document.getElementById('paste-preview');
+            if (!raw) return;
+            btn.textContent = 'Parsing…';
+            status.textContent = '⏳ Sending to LLM…';
+            preview.style.display = 'none';
+            try {
+                const resp = await fetch('/parse-jd-text', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: raw })
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const d = await resp.json();
+                document.getElementById('paste-company').value     = d.company             || '';
+                document.getElementById('paste-title').value       = d.title               || '';
+                document.getElementById('paste-exp').value         = d.experience_required || '';
+                document.getElementById('paste-skills').value      = d.skills_required     || '';
+                document.getElementById('paste-description').value = d.job_description     || raw;
+                status.textContent = '✅ Parsed — review and save';
+                preview.style.display = 'block';
+            } catch(err) {
+                status.textContent = '❌ ' + err.message;
+            } finally {
+                btn.textContent = 'Parse & Preview';
+            }
+        }
+
+        async function savePastedJob() {
+            const status = document.getElementById('paste-save-status');
+            status.textContent = 'Saving…';
+            try {
+                const res = await api('/jobs', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title:               document.getElementById('paste-title').value,
+                        company:             document.getElementById('paste-company').value,
+                        experience_required: document.getElementById('paste-exp').value,
+                        skills_required:     document.getElementById('paste-skills').value,
+                        description:         document.getElementById('paste-description').value,
+                        source_url:          document.getElementById('paste-url').value.trim(),
+                    })
+                });
+                status.textContent = res.success ? `✅ Saved (ID: ${res.id})` : '❌ Save failed';
+                if (res.success) { jobs = await api('/jobs'); renderJobs(); populateAnalyzerDropdowns(); }
+            } catch(err) { status.textContent = '❌ ' + err.message; }
         }
 
         async function api(path, options = {}) {
@@ -1610,13 +1929,23 @@
 
             list.innerHTML = items.map(j => {
                 const checked = selectedJobs.has(+j.job_id);
+                const applied = j.applied;
+                const urlAttr = j.source_url ? `href="${escapeHtml(j.source_url)}" target="_blank"` : '';
                 return `
-                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleJob(${j.job_id}, this)">
-                        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();">
-                        <div>
-                            <div class="select-item-title">${escapeHtml(j.title)}</div>
+                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleJob(${j.job_id}, this)" style="gap:8px;">
+                        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();" style="flex-shrink:0;">
+                        <div style="flex:1;min-width:0;">
+                            <div class="select-item-title" style="display:flex;align-items:center;gap:6px;">
+                                ${escapeHtml(j.title)}
+                                ${j.source_url ? `<a ${urlAttr} onclick="event.stopPropagation();" style="font-size:10px;color:var(--text3);text-decoration:none;flex-shrink:0;" title="${escapeHtml(j.source_url)}">🔗</a>` : ''}
+                            </div>
                             <div class="select-item-meta">#${j.job_id} · ${escapeHtml(j.company)}</div>
                         </div>
+                        <button onclick="event.stopPropagation();toggleApplied('${j.job_id}', ${applied})"
+                            title="${applied ? 'Mark as not applied' : 'Mark as applied'}"
+                            style="flex-shrink:0;padding:2px 7px;font-size:11px;font-weight:600;border-radius:4px;border:1px solid ${applied ? 'var(--green)' : 'var(--border2)'};background:${applied ? 'rgba(34,197,94,0.12)' : 'transparent'};color:${applied ? 'var(--green)' : 'var(--text3)'};cursor:pointer;">
+                            ${applied ? '✓ Applied' : 'Applied?'}
+                        </button>
                     </div>`;
             }).join('') || '<div class="empty">No jobs found</div>';
         }
@@ -1627,6 +1956,17 @@
             else selectedJobs.add(jid);
             renderJobs();
             updateAnalyzerCounts();
+        }
+
+        async function toggleApplied(jobId, currentlyApplied) {
+            const newVal = !currentlyApplied;
+            await fetch(`/jobs/${jobId}/applied`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ applied: newVal }),
+            });
+            jobs = await api('/jobs');
+            renderJobs();
         }
 
         function updateAnalyzerCounts() {
@@ -1653,12 +1993,23 @@
                 </div>`;
             }).join('') || '<div class="empty">None selected</div>';
 
+            // Detect duplicate title+company combos across selected jobs
+            const jobKeyCount = {};
+            [...selectedJobs].forEach(id => {
+                const j = jobs.find(j => String(j.job_id) === String(id));
+                if (!j) return;
+                const key = `${(j.title||'').trim().toLowerCase()}|||${(j.company||'').trim().toLowerCase()}`;
+                jobKeyCount[key] = (jobKeyCount[key] || 0) + 1;
+            });
+
             jEl.innerHTML = [...selectedJobs].map(id => {
-                const j = jobs.find(j => j.job_id === id);
-                return `<div class="select-item checked">
-                    <div>
-                        <div class="select-item-title">${escapeHtml(j ? j.title : 'Unknown')}</div>
-                        <div class="select-item-meta">${escapeHtml(j ? j.company : '')}</div>
+                const j = jobs.find(j => String(j.job_id) === String(id));
+                const key = j ? `${(j.title||'').trim().toLowerCase()}|||${(j.company||'').trim().toLowerCase()}` : '';
+                const isDup = j && jobKeyCount[key] > 1;
+                return `<div class="select-item checked" style="${isDup ? 'border-color:var(--amber);' : ''}">
+                    <div style="flex:1;min-width:0;">
+                        <div class="select-item-title">${escapeHtml(j ? j.title : 'Unknown')}${isDup ? ' <span style="color:var(--amber);font-size:10px;font-weight:700;">DUP</span>' : ''}</div>
+                        <div class="select-item-meta">#${id} · ${escapeHtml(j ? j.company : '')}</div>
                     </div>
                     <button onclick="selectedJobs.delete('${id}');renderAnalyzerSelections();updateAnalyzerCounts()">✕</button>
                 </div>`;
@@ -2230,6 +2581,21 @@
 
                     <div style="margin-top:1rem;padding:0.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
                         <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+                            ${(() => {
+                                const matchedJob = Object.values(jobs).find(j =>
+                                    j.title === r.job_title && (j.company === r.job_company || !r.job_company)
+                                ) || Object.values(jobs).find(j => j.title === r.job_title);
+                                const jobId = matchedJob ? matchedJob.job_id : null;
+                                const isApplied = matchedJob ? matchedJob.applied : false;
+                                return jobId ? `
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                                    <input type="checkbox" id="applied-cb-${escapeHtml(resultId)}" ${isApplied ? 'checked' : ''}
+                                        style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;"
+                                        onchange="toggleApplied('${jobId}', ${isApplied})">
+                                    ✅ Applied?
+                                    <span style="font-size:0.72rem;color:var(--text2);font-weight:400;">(marks job as applied)</span>
+                                </label>` : '';
+                            })()}
                             <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
                                 <input type="checkbox" id="interview-cb-${escapeHtml(resultId)}"
                                     style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"
@@ -2275,6 +2641,7 @@
 
         // Merged result list: currentResults (session) + disk results from /list_results
         // ── Chart rendering ──────────────────────────────────────────
+        // r.metrics values can be null (pending) — shown as greyed placeholder bars
         function renderResultChart(r) {
             const card = document.getElementById('result-chart-card');
             const area = document.getElementById('result-chart-area');
@@ -2322,15 +2689,17 @@
               </g>`;
 
             dims.forEach((d, i) => {
-                const v = m[d.key] ?? 0;
-                const h = Math.round((v / 100) * maxBarH);
+                const raw = m[d.key];
+                const pending = raw === null || raw === undefined;
+                const v = pending ? 0 : raw;
+                const h = pending ? maxBarH * 0.15 : Math.round((v / 100) * maxBarH);
                 const x = gap + (barW + gap) * (i + 1);
                 bars += `
               <g>
                 <rect x="${x}" y="${svgH - 44 - h}" width="${barW}" height="${h}" rx="4"
-                      fill="${color(v)}" opacity="0.8"/>
+                      fill="${pending ? 'var(--border2)' : color(v)}" opacity="${pending ? 0.4 : 0.8}"/>
                 <text x="${x + barW/2}" y="${svgH - 44 - h - 6}" text-anchor="middle"
-                      font-size="11" font-weight="600" fill="${color(v)}">${v}%</text>
+                      font-size="11" font-weight="600" fill="${pending ? 'var(--text3)' : color(v)}">${pending ? '…' : v + '%'}</text>
                 <text x="${x + barW/2}" y="${svgH - 28}" text-anchor="middle"
                       font-size="10" fill="var(--text2)">${d.label.replace(/^\S+\s/,'')}</text>
                 <text x="${x + barW/2}" y="${svgH - 14}" text-anchor="middle" font-size="13">${d.emoji}</text>
@@ -2359,6 +2728,7 @@
                 return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
             };
             const points = dims.map((d, i) => toXY(m[d.key] ?? 0, i));
+            // Pending judges contribute 0 to radar but dots are greyed
             const poly = points.map(p => p.join(',')).join(' ');
             const grid75 = dims.map((_, i) => toXY(75, i)).map(p => p.join(',')).join(' ');
             const grid50 = dims.map((_, i) => toXY(50, i)).map(p => p.join(',')).join(' ');
@@ -2379,7 +2749,11 @@
               <polygon points="${grid25}" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
               ${axes}
               <polygon points="${poly}" fill="${color(overall)}" fill-opacity="0.18" stroke="${color(overall)}" stroke-width="2"/>
-              ${points.map((p,i) => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${color(m[dims[i].key]??0)}" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}
+              ${points.map((p,i) => {
+                  const val = m[dims[i].key];
+                  const isPending = val === null || val === undefined;
+                  return `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${isPending ? 'var(--border2)' : color(val)}" stroke="var(--surface)" stroke-width="1.5"/>`;
+              }).join('')}
               <text x="${cx}" y="208" text-anchor="middle" font-size="9" fill="var(--text3)">Radar Overview</text>
             </svg>`;
 
@@ -2426,11 +2800,16 @@
                     ? 'This session'
                     : new Date(r.timestamp).toLocaleString();
                 const scoreColor = score >= 75 ? 'var(--green,#22c55e)' : score >= 50 ? '#f59e0b' : 'var(--red,#ef4444)';
-                return `<tr onclick="viewResultDetail(${i}, allResultsCache)" class="cursor-pointer">
+                const delBtn = r.result_id
+                    ? `<button class="btn btn-sm" style="padding:2px 6px;font-size:10px;background:transparent;border-color:var(--red);color:var(--red);"
+                         onclick="event.stopPropagation();deleteResult('${escapeHtml(r.result_id)}')">✕</button>`
+                    : '';
+                return `<tr class="cursor-pointer">
                     <td>${name}</td>
                     <td>${job}</td>
                     <td><strong style="color:${scoreColor}">${score}%</strong></td>
                     <td style="font-size:0.78rem;color:var(--text2)">${escapeHtml(when)}</td>
+                    <td>${delBtn}</td>
                 </tr>`;
             }).join('');
 
@@ -2444,6 +2823,13 @@
             });
 
             updateAccuracyBadge();
+        }
+
+        async function deleteResult(resultId) {
+            try {
+                await fetch(`/results/${encodeURIComponent(resultId)}`, { method: 'DELETE' });
+                await loadResults();
+            } catch(e) { console.error('Delete failed', e); }
         }
 
         function viewResultDetailUnified(r) {
@@ -2685,6 +3071,21 @@
 
                     <div style="margin-top:1rem;padding:0.75rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
                         <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+                            ${(() => {
+                                const matchedJob = Object.values(jobs).find(j =>
+                                    j.title === r.job_title && (j.company === r.resume_name || !r.resume_name)
+                                ) || Object.values(jobs).find(j => j.title === r.job_title);
+                                const jobId = matchedJob ? matchedJob.job_id : null;
+                                const isApplied = matchedJob ? matchedJob.applied : false;
+                                return jobId ? `
+                                <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
+                                    <input type="checkbox" id="applied-cb-${escapeHtml(r.result_id)}" ${isApplied ? 'checked' : ''}
+                                        style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;"
+                                        onchange="toggleApplied('${jobId}', ${isApplied})">
+                                    ✅ Applied?
+                                    <span style="font-size:0.72rem;color:var(--text2);font-weight:400;">(marks job as applied)</span>
+                                </label>` : '';
+                            })()}
                             <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem;font-weight:600;">
                                 <input type="checkbox" id="interview-cb-${escapeHtml(r.result_id)}"
                                     style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"
@@ -2806,6 +3207,11 @@
             jobSelect.innerHTML = Object.values(jobs).map(j =>
                 `<option value="${j.job_id}">${escapeHtml(j.title || 'Untitled')} @ ${escapeHtml(j.company || '')}</option>`
             ).join('');
+
+            // Auto-select all options so the user doesn't have to click each item
+            for (const opt of resumeSelect.options) opt.selected = true;
+            for (const opt of jobSelect.options)   opt.selected = true;
+            updateAnalyzerSelectionsFromDropdowns();
         }
 
         function updateAnalyzerSelectionsFromDropdowns() {

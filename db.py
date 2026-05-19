@@ -159,6 +159,7 @@ def list_runs(limit: int = 50, offset: int = 0) -> list[dict]:
                 "coach_recommendations":    coach_recs,
             },
             "ats_validation": ats_val,
+            "pipeline_data": pr,
         })
     return result
 

@@ -558,6 +558,20 @@ def call_ollama(
         print(f"❌ LLM call failed: {e}")
         return {"success": False, "error": str(e)}
 
+
+async def call_ollama_async(
+    system_prompt: str, user_prompt: str,
+    model: str = "deepseek-r1:14b", temperature: float = 0.0,
+    api_key: str = "", api_base_url: str = "",
+) -> dict:
+    """Non-blocking wrapper — runs the synchronous call_ollama in a thread pool
+    so the asyncio event loop stays free to handle other requests."""
+    import asyncio
+    return await asyncio.to_thread(
+        call_ollama, system_prompt, user_prompt, model, temperature, api_key, api_base_url
+    )
+
+
 def extract_confidence_from_text(text: str) -> int:
     patterns = [
         r"confidence[:\s]*(\d+)%?", r"confident[:\s]*(\d+)%?",
@@ -902,7 +916,7 @@ async def _run_with_retry(
             extra = None
 
         try:
-            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.0, api_key=api_key, api_base_url=api_base_url)
+            result = await call_ollama_async(system_prompt, user_prompt, llm_model, temperature=0.0, api_key=api_key, api_base_url=api_base_url)
             if not result["success"]:
                 if attempt == max_retries - 1:
                     return {"success": False, "error": result["error"], "raw_response": "", "attempts": attempt + 1}
@@ -990,7 +1004,7 @@ class SpecializedJudgeEngine:
             absent_seniority_signals, irrelevant_statements, unquantified_statements
         )
         try:
-            result = call_ollama(system_prompt, user_prompt, llm_model, temperature=0.1, api_key=api_key, api_base_url=api_base_url)
+            result = await call_ollama_async(system_prompt, user_prompt, llm_model, temperature=0.1, api_key=api_key, api_base_url=api_base_url)
             if not result["success"]: return {"success": False, "error": result["error"], "raw_response": ""}
             parsed = robust_parse_response(result["data"], "coach")
             return {"success": parsed.get("success", False), "data": parsed, "raw_response": result["data"]}

@@ -8,7 +8,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,11 @@ load_dotenv()
 from specialized_judges import (
     SpecializedJudgeEngine,
     calculate_overall_match,
+    calculate_skills_score,
+    calculate_experience_score,
+    calculate_seniority_score,
+    calculate_relevancy_score,
+    calculate_impact_score,
     JUDGE_DEFAULT_WEIGHTS,
 )
 
@@ -111,6 +116,10 @@ class AddJobRequest(BaseModel):
     experience_required: str
     skills_required: str
     description: str
+    source_url: str = ""
+
+class ToggleAppliedRequest(BaseModel):
+    applied: bool
 
 # --- App Lifecycle ---
 @asynccontextmanager
@@ -186,17 +195,16 @@ async def execute_llm_call(system_or_prompt: str, prompt_or_model: str = None, m
         model = prompt_or_model
 
     try:
-        from specialized_judges import call_ollama
+        from specialized_judges import call_ollama_async
         print(f"🔍 Attempting LLM call with model: {model}")
-        result = call_ollama(system_prompt, prompt, model, temperature=0.1)
-        
-        # If the selected model fails, fallback to deepseek-r1:14b
+        result = await call_ollama_async(system_prompt, prompt, model, temperature=0.1)
+
         if not result["success"]:
             fallback = get_free_model()
             if fallback != model:
                 print(f"⚠️ Model {model} failed, falling back to {fallback}")
-                result = call_ollama("", prompt, fallback, temperature=0.1)
-        
+                result = await call_ollama_async("", prompt, fallback, temperature=0.1)
+
         return result
     except Exception as e:
         print(f"❌ execute_llm_call failed: {str(e)}")
@@ -419,10 +427,33 @@ async def add_job(req: AddJobRequest):
     with open(JOBS_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         if file_is_new:
-            writer.writerow(['job_id', 'title', 'company', 'experience_required', 'skills_required', 'description'])
-        writer.writerow([new_id, req.title, req.company, req.experience_required, req.skills_required, clean_desc])
+            writer.writerow(['job_id', 'title', 'company', 'experience_required', 'skills_required', 'description', 'source_url', 'applied'])
+        writer.writerow([new_id, req.title, req.company, req.experience_required, req.skills_required, clean_desc, req.source_url, '0'])
     jobs_data = load_jobs(JOBS_CSV)
     return {"success": True, "id": new_id}
+
+
+@app.patch("/jobs/{job_id}/applied")
+async def toggle_applied(job_id: str, req: ToggleAppliedRequest):
+    global jobs_data
+    with open(JOBS_CSV, newline='', encoding='utf-8') as f:
+        rows = list(csv.DictReader(f))
+    found = False
+    for row in rows:
+        if str(row.get('job_id', '')) == str(job_id):
+            row['applied'] = '1' if req.applied else '0'
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    fieldnames = list(rows[0].keys()) if rows else ['job_id', 'title', 'company', 'experience_required', 'skills_required', 'description', 'source_url', 'applied']
+    with open(JOBS_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        writer.writerows(rows)
+    jobs_data = load_jobs(JOBS_CSV)
+    return {"success": True}
+
 
 @app.post("/feedback")
 async def add_feedback(req: FeedbackRequest):
@@ -633,6 +664,176 @@ async def analyze_resume_unified(request: AnalyzeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/analyze/stream")
+async def analyze_stream(request: AnalyzeRequest):
+    """SSE endpoint — yields each judge result as it completes, then overall+coach."""
+    import asyncio as _asyncio
+
+    async def generate():
+        def _event(obj: dict) -> str:
+            # Pad to >1.5KB so Nagle algorithm flushes immediately
+            payload = json.dumps(obj)
+            pad = max(0, 1536 - len(payload))
+            return f"data: {payload}\n: {'x' * pad}\n\n"
+
+        try:
+            engine = SpecializedJudgeEngine(confidence_threshold=75, max_retries=3)
+            model = request.llm_models[0]
+            timestamp = datetime.utcnow().isoformat()
+
+            # ATS preflight (instant, no LLM)
+            ats_result = score_ats(request.resume_text, request.job_description)
+            ats_dict = ats_to_dict(ats_result)
+            yield _event({"event": "ats", "data": ats_dict})
+
+            # Load skills taxonomy
+            skills_taxonomy = {}
+            try:
+                with open(os.path.join(BASE_DIR, "data", "skills_taxonomy.json"), "r", encoding="utf-8") as f:
+                    skills_taxonomy = json.load(f)
+            except Exception:
+                pass
+
+            kw = dict(api_key=request.api_key, api_base_url=request.api_base_url)
+
+            # Create tasks for the 5 concurrent judges
+            judge_coros = {
+                "skills":     engine.run_skills_judge(request.resume_text, request.job_description, model, skills_taxonomy, **kw),
+                "experience": engine.run_experience_judge(request.resume_text, request.job_description, model, **kw),
+                "seniority":  engine.run_seniority_judge(request.resume_text, request.job_description, model, **kw),
+                "relevancy":  engine.run_relevancy_judge(request.resume_text, request.job_description, model, **kw),
+                "impact":     engine.run_impact_judge(request.resume_text, model, **kw),
+            }
+            task_to_name = {}
+            pending = set()
+            for name, coro in judge_coros.items():
+                t = _asyncio.create_task(coro)
+                task_to_name[t] = name
+                pending.add(t)
+
+            SCORE_FNS = {
+                "skills":     calculate_skills_score,
+                "experience": calculate_experience_score,
+                "seniority":  calculate_seniority_score,
+                "relevancy":  calculate_relevancy_score,
+                "impact":     calculate_impact_score,
+            }
+            judge_results = {}
+            all_scores = {}
+
+            while pending:
+                done, pending = await _asyncio.wait(pending, return_when=_asyncio.FIRST_COMPLETED)
+                for task in done:
+                    name = task_to_name[task]
+                    try:
+                        result = task.result()
+                    except Exception as e:
+                        result = {"success": False, "data": {}, "error": str(e)}
+                    judge_results[name] = result
+                    scores = SCORE_FNS[name](result.get("data", {}))
+                    all_scores[name] = scores
+                    yield _event({
+                        "event":   "judge",
+                        "judge":   name,
+                        "score":   round(scores.get("score", 0) * 100, 1),
+                        "success": result.get("success", False),
+                    })
+                    await _asyncio.sleep(0)  # cede event loop so uvicorn flushes
+
+            # Coach (needs all gap data from the 5 judges)
+            yield _event({"event": "coach_start"})
+            await _asyncio.sleep(0)
+            s   = all_scores.get("skills", {})
+            e   = all_scores.get("experience", {})
+            sr  = all_scores.get("seniority", {})
+            rel = all_scores.get("relevancy", {})
+            imp = all_scores.get("impact", {})
+
+            coach_result = await engine.run_coach_judge(
+                resume_text=request.resume_text,
+                job_description=request.job_description,
+                missing_skills=s.get("missing_skills", []),
+                unmet_responsibilities=e.get("unmet_responsibilities", []),
+                absent_seniority_signals=sr.get("absent_signals", []),
+                irrelevant_statements=rel.get("irrelevant_statements", []),
+                unquantified_statements=imp.get("unquantified_statements", []),
+                llm_model=model, **kw,
+            )
+
+            # Learned weights
+            learned = compute_learned_weights()
+            overall = (
+                calculate_overall_match(s, e, sr, rel, imp, learned["weights"])
+                if learned["source"] == "learned"
+                else calculate_overall_match(s, e, sr, rel, imp)
+            )
+
+            pipeline_result = {
+                "overall":    overall,
+                "skills":     {"judge_result": judge_results.get("skills", {}),     "scores": s},
+                "experience": {"judge_result": judge_results.get("experience", {}), "scores": e},
+                "seniority":  {"judge_result": judge_results.get("seniority", {}),  "scores": sr},
+                "relevancy":  {"judge_result": judge_results.get("relevancy", {}),  "scores": rel},
+                "impact":     {"judge_result": judge_results.get("impact", {}),     "scores": imp},
+                "coach":      coach_result,
+                "ats_preflight": ats_dict,
+            }
+
+            # Save to SQLite + JSON (same as /analyze)
+            result_id = f"analysis_{timestamp.replace(':', '-').replace('.', '-')}"
+            try:
+                run_db.save_run(
+                    run_id=result_id, model=model,
+                    resume_text=request.resume_text, job_desc=request.job_description,
+                    pipeline_result=pipeline_result, ats_result=ats_dict,
+                    candidate_name=request.candidate_name, job_title=request.job_title,
+                )
+            except Exception as db_err:
+                logger.warning(f"SQLite save failed (non-fatal): {db_err}")
+
+            coach_recs = None
+            if coach_result.get("success") and request.use_coach:
+                coach_recs = coach_result.get("data", {}).get("improvement_analysis", [])
+
+            yield _event({
+                "event":       "complete",
+                "match_score": round(overall.get("overall_score", 0) * 100, 1),
+                "metrics": {
+                    "skills_coverage":       round(s.get("score", 0) * 100, 1),
+                    "experience_depth":      round(e.get("score", 0) * 100, 1),
+                    "seniority_calibration": round(sr.get("score", 0) * 100, 1),
+                    "statement_relevancy":   round(rel.get("score", 0) * 100, 1),
+                    "impact_quantification": round(imp.get("score", 0) * 100, 1),
+                },
+                "analysis": {
+                    "missing_critical_skills":   s.get("missing_skills", []),
+                    "unmet_responsibilities":     e.get("unmet_responsibilities", []),
+                    "absent_seniority_signals":   sr.get("absent_signals", []),
+                    "irrelevant_statements":      rel.get("irrelevant_statements", []),
+                    "unquantified_statements":    imp.get("unquantified_statements", []),
+                    "coach_recommendations":      coach_recs,
+                },
+                "pipeline_data": pipeline_result,
+                "ats_preflight": ats_dict,
+                "metadata": {
+                    "model_used": model,
+                    "timestamp":  timestamp,
+                    "result_id":  result_id,
+                    "pipeline_version": "5-stage-v2.0",
+                },
+            })
+
+        except Exception as e:
+            yield _event({"event": "error", "detail": str(e)})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/list_results")
 async def list_results(limit: int = 50, offset: int = 0):
     """Return saved pipeline results from SQLite, falling back to JSON files for legacy runs."""
@@ -773,90 +974,6 @@ async def list_results(limit: int = 50, offset: int = 0):
         pass
     return results
 
-class SummarizeResultRequest(BaseModel):
-    result_id: str
-    model: str = "deepseek-r1:14b"
-
-@app.post("/summarize_result")
-async def summarize_result(request: SummarizeResultRequest):
-    """Generate an AI summary for a single result combining all judge outputs."""
-    timestamp = datetime.utcnow().isoformat()
-    result_id = request.result_id
-    model = request.model
-
-    # Load the full pipeline data
-    pipeline_dir = os.path.join(BASE_DIR, "results", "pipeline")
-    pipeline_file = os.path.join(pipeline_dir, f"{result_id}.json")
-    if not os.path.exists(pipeline_file):
-        raise HTTPException(status_code=404, detail=f"Result {result_id} not found")
-
-    with open(pipeline_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    pr = data.get("pipeline_result", {})
-    overall = pr.get("overall", {})
-    component_scores = overall.get("component_scores", {})
-
-    resume_text = data.get("resume_text", "")
-    job_description = data.get("job_description", "")
-    skills_data = pr.get("skills", {}).get("judge_result", {}).get("data", {})
-    exp_data = pr.get("experience", {}).get("judge_result", {}).get("data", {})
-    seniority_data = pr.get("seniority", {}).get("judge_result", {}).get("data", {})
-    impact_data = pr.get("impact", {}).get("judge_result", {}).get("data", {})
-    coach = pr.get("coach", {})
-    coach_recs = []
-    if coach.get("success") and coach.get("data"):
-        coach_recs = coach["data"].get("improvement_analysis", [])[:3]
-
-    prompt = f"""You are a senior technical recruiter. Write a concise 3-4 sentence summary of this candidate's fit for the role.
-
-CANDIDATE RESUME (excerpt):
-{resume_text[:600]}
-
-JOB DESCRIPTION (excerpt):
-{job_description[:400]}
-
-JUDGE SCORES:
-- Overall Match: {round(overall.get('overall_score', 0) * 100, 1)}%
-- Skills Coverage: {round(component_scores.get('skills', 0) * 100, 1)}%
-- Experience Depth: {round(component_scores.get('experience', 0) * 100, 1)}%
-- Seniority Calibration: {round(component_scores.get('seniority', 0) * 100, 1)}%
-- Statement Relevancy: {round(component_scores.get('relevancy', 0) * 100, 1)}%
-- Impact Quantification: {round(component_scores.get('impact', 0) * 100, 1)}%
-
-CRITICAL GAPS IDENTIFIED:
-- Missing Skills: {', '.join(skills_data.get('missing_critical_skills', [])) or 'None'}
-- Unmet Responsibilities: {', '.join(exp_data.get('unmet_responsibilities', [])) or 'None'}
-- Missing Seniority Signals: {', '.join(seniority_data.get('absent_signals', [])) or 'None'}
-- Unquantified Statements: {len(impact_data.get('unquantified_statements', []))} items lack metrics
-
-TOP COACH RECOMMENDATIONS:
-{chr(10).join([f"- {r.get('suggested_improvement', '')}" for r in coach_recs]) or 'None generated'}
-
-Write a clear, actionable summary: state the candidate's strongest selling point, their biggest gap, and one specific thing they should fix. Output plain text only, no markdown, no bullet points."""
-
-    result = await execute_llm_call(prompt, model)
-    summary_text = result.get("data", "Summary generation failed.")
-
-    # Clean any HTML/markdown
-    import re as _re
-    summary_text = _re.sub(r'<[^>]+>', '', summary_text).strip()
-
-    # Save to summary folder
-    summary_id = f"analysis_{timestamp.replace(':', '-').replace('.', '-')}"
-    summary_data = {
-        "timestamp": timestamp,
-        "model": model,
-        "result_id": result_id,
-        "summary": summary_text,
-        "summary_id": summary_id
-    }
-    summary_path = os.path.join(BASE_DIR, "results", "summary", f"{summary_id}.json")
-    with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump(summary_data, f, indent=2, ensure_ascii=False)
-
-    return {"summary": summary_text}
-
 @app.post("/summarize_batch")
 async def summarize_batch(request: BatchSummaryRequest):
     timestamp = datetime.utcnow().isoformat()
@@ -880,17 +997,6 @@ IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just pla
             summary_text = re.sub(r'<[^>]+>', '', summary_text)
             # Clean up extra whitespace
             summary_text = ' '.join(summary_text.split())
-        
-        # Save summary to file
-        summary_data = {
-            "timestamp": timestamp,
-            "model": request.model,
-            "batch_data": request.batch_data,
-            "summary": summary_text,
-            "summary_id": summary_id
-        }
-        with open(os.path.join(BASE_DIR, "results", "summary", f"{summary_id}.json"), "w", encoding="utf-8") as f:
-            json.dump(summary_data, f, indent=2, ensure_ascii=False)
         
         return {"summary": summary_text}
     except Exception as e:
@@ -933,27 +1039,12 @@ async def summarize_candidate(request: CandidateSummaryRequest):
             summary_text = re.sub(r'<[^>]+>', '', summary_text)
             summary_text = ' '.join(summary_text.split())
         
-        # Save summary to file
-        summary_data = {
-            "timestamp": timestamp,
-            "model": request.model,
-            "resume_name": request.resume_name,
-            "job_title": request.job_title,
-            "score": request.score,
-            "metrics": request.metrics,
-            "missing_skills": request.missing_skills,
-            "summary": summary_text,
-            "summary_id": summary_id
-        }
-        with open(os.path.join(BASE_DIR, "results", "summary", f"{summary_id}.json"), "w", encoding="utf-8") as f:
-            json.dump(summary_data, f, indent=2, ensure_ascii=False)
-        
         return {"summary": summary_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-OUTCOMES_FILE = os.path.join(BASE_DIR, "results", "outcomes.jsonl")
-JUDGE_FEEDBACK_FILE = os.path.join(BASE_DIR, "results", "judge_feedback.jsonl")
+OUTCOMES_FILE = os.path.join(BASE_DIR, "data", "outcomes.jsonl")
+JUDGE_FEEDBACK_FILE = os.path.join(BASE_DIR, "data", "judge_feedback.jsonl")
 
 # Which judges each outcome signal trains
 INTERVIEW_JUDGES = ["skills", "experience", "seniority", "relevancy"]
@@ -1097,6 +1188,77 @@ async def get_outcomes():
         "correct_interview": correct_int,
     }
 
+class SummarizeResultRequest(BaseModel):
+    result_id: str
+    model: str = "deepseek-r1:14b"
+
+@app.post("/summarize_result")
+async def summarize_result(req: SummarizeResultRequest):
+    run = run_db.get_run(req.result_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Result not found")
+    pr = run.get("pipeline_result", {})
+    overall = pr.get("overall", {})
+    score = round((overall.get("overall_score") or 0) * 100, 1)
+    coach = pr.get("coach", {})
+    coach_recs = []
+    if coach.get("success") and coach.get("data"):
+        coach_recs = coach["data"].get("improvement_analysis", [])[:3]
+    system = "You write concise candidate match summaries for recruiters. Two sentences max."
+    prompt = f"""Summarize this resume analysis in 2 sentences:
+Overall match: {score}%
+Top coach notes: {'; '.join(r.get('recommendation','') for r in coach_recs if r.get('recommendation'))}
+Resume snippet: {(run.get('resume_text') or '')[:400]}
+Job snippet: {(run.get('job_description') or '')[:300]}"""
+    try:
+        from specialized_judges import call_ollama_async
+        result = await call_ollama_async(system, prompt, req.model, temperature=0.3)
+        if result.get("success"):
+            return {"summary": result["data"].strip()}
+    except Exception:
+        pass
+    return {"summary": f"Overall match score: {score}%. Review individual judge scores for details."}
+
+
+class InterviewPrepRequest(BaseModel):
+    result_id: str
+    model: str = "deepseek-r1:14b"
+    force_regen: bool = False
+
+@app.post("/interview_prep")
+async def interview_prep(req: InterviewPrepRequest):
+    run = run_db.get_run(req.result_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Result not found")
+    pr = run.get("pipeline_result", {})
+    skills_data = pr.get("skills", {}).get("judge_result", {}).get("data", {})
+    missing = skills_data.get("missing_critical_skills", [])[:5]
+    system = "You generate targeted interview prep questions. Return a JSON array of objects with 'question' and 'tip' keys."
+    prompt = f"""Generate 5 interview questions for a candidate applying to this role.
+Focus on these skill gaps: {', '.join(missing) if missing else 'general fit'}
+Job description: {(run.get('job_description') or '')[:500]}
+Return JSON array: [{{"question": "...", "tip": "..."}}]"""
+    try:
+        from specialized_judges import call_ollama_async
+        result = await call_ollama_async(system, prompt, req.model, temperature=0.4)
+        if result.get("success"):
+            raw = re.sub(r"```[a-z]*\n?", "", result["data"]).strip()
+            match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if match:
+                questions = json.loads(match.group())
+                return {"questions": questions}
+    except Exception:
+        pass
+    return {"questions": [{"question": "Tell me about your relevant experience for this role.", "tip": "Focus on specific projects and measurable outcomes."}]}
+
+
+@app.delete("/results/{result_id}")
+async def delete_result(result_id: str):
+    with run_db._conn() as conn:
+        conn.execute("DELETE FROM runs WHERE id=?", (result_id,))
+    return {"success": True}
+
+
 @app.get("/judge_calibration")
 async def judge_calibration():
     """Per-judge accuracy stats from real outcome feedback."""
@@ -1146,24 +1308,11 @@ class InterviewPrepRequest(BaseModel):
 
 @app.post("/interview_prep")
 async def interview_prep(req: InterviewPrepRequest):
-    """Generate interview questions + model answers. Caches result to results/interview_prep/."""
-    prep_dir = os.path.join(BASE_DIR, "results", "interview_prep")
-    os.makedirs(prep_dir, exist_ok=True)
-    cache_file = os.path.join(prep_dir, f"{req.result_id}.json")
-
-    # Return cached version unless force_regen requested
-    if os.path.exists(cache_file) and not req.force_regen:
-        with open(cache_file, "r", encoding="utf-8") as f:
-            cached = json.load(f)
-        return {"questions": cached.get("questions", []), "result_id": req.result_id, "cached": True}
-
-    pipeline_dir = os.path.join(BASE_DIR, "results", "pipeline")
-    pipeline_file = os.path.join(pipeline_dir, f"{req.result_id}.json")
-    if not os.path.exists(pipeline_file):
+    """Generate interview questions + model answers. Loads from SQLite."""
+    from db import get_run as db_get_run
+    data = db_get_run(req.result_id)
+    if not data:
         raise HTTPException(status_code=404, detail=f"Result {req.result_id} not found")
-
-    with open(pipeline_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
 
     pr = data.get("pipeline_result", {})
     resume_text = data.get("resume_text", "")
@@ -1261,9 +1410,6 @@ Generate 8-12 focused questions weighted toward domain gaps. Output the JSON."""
                 if gap_key not in seen_gaps:
                     seen_gaps.add(gap_key)
                     questions.append(q)
-            # Cache to disk
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump({"questions": questions, "result_id": req.result_id}, f, indent=2, ensure_ascii=False)
             return {"questions": questions, "result_id": req.result_id, "cached": False}
         except json.JSONDecodeError:
             pass
@@ -1277,22 +1423,16 @@ class EditResumeRequest(BaseModel):
 
 @app.post("/edit_resume")
 async def edit_resume(req: EditResumeRequest):
-    """Apply coach recommendations to resume text. Caches result to results/tailored_resumes/."""
-    tailored_dir = os.path.join(BASE_DIR, "results", "tailored_resumes")
-    os.makedirs(tailored_dir, exist_ok=True)
-    cache_file = os.path.join(tailored_dir, f"{req.result_id}.txt")
-
-    # Return cached version unless force_regen requested
-    if os.path.exists(cache_file) and not req.force_regen:
-        with open(cache_file, "r", encoding="utf-8") as f:
-            return {"edited_text": f.read(), "result_id": req.result_id, "cached": True}
-
-    pipeline_file = os.path.join(BASE_DIR, "results", "pipeline", f"{req.result_id}.json")
-    if not os.path.exists(pipeline_file):
+    """Apply coach recommendations to resume text. Uses SQLite for data and tailored text cache."""
+    from db import get_run as db_get_run
+    data = db_get_run(req.result_id)
+    if not data:
         raise HTTPException(status_code=404, detail=f"Result {req.result_id} not found")
 
-    with open(pipeline_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Return cached tailored text unless force_regen requested
+    if not req.force_regen and data.get("tailored_text"):
+        return {"edited_text": data["tailored_text"], "result_id": req.result_id, "cached": True,
+                "ats_validation": data.get("ats_validation")}
 
     resume_text = data.get("resume_text", "")
 
@@ -1375,10 +1515,6 @@ Return the complete resume with existing bullets reworded to better highlight re
     edited_text = result.get("data", "").strip()
     if not edited_text:
         raise HTTPException(status_code=500, detail="LLM returned empty resume")
-
-    # Cache to disk
-    with open(cache_file, "w", encoding="utf-8") as f:
-        f.write(edited_text)
 
     # Validation loop: ATS score before vs after (instant — no LLM)
     original_resume = data.get("resume_text", "")
@@ -1490,40 +1626,112 @@ async def extract_pdf(file: UploadFile = File(...)):
         elif single_ratio > 0.1 or chars_per_word < 4:
             confidence = "medium"
 
-    # LLM-parse structured fields from the first ~1500 chars (name/title/skills are always near the top)
+    clean_text = full_text
+
+    experience_years = ""  # left blank — user fills this in manually
+
+    # ── Format detection ─────────────────────────────────────────────────────
+    # Format A (Gaurica-style): two-column PDF — name+title concatenate, section
+    #   headers may also concatenate ("SKILLSTECHNICAL SKILLS")
+    # Format B (Jai-style): name appears at bottom, not top
+    # Format C (Rishabh-style): high blank-line ratio from double-spaced artifact
+    # generic: fallback
+    def _detect_format(text: str) -> str:
+        first_500 = text[:500]
+        if (re.search(r'[A-Z]{3,}[A-Z][a-z/|]', first_500) or
+                re.search(r'SKILLS(?:TECHNICAL|CORE|PROFESSIONAL)', text, re.IGNORECASE)):
+            return 'format_a'
+        name_pat = re.compile(r'\b[A-Z]{2,}\s+[A-Z]{2,}\b')
+        first_third  = text[:max(1, len(text) // 3)]
+        last_quarter = text[max(0, int(len(text) * 0.75)):]
+        if not name_pat.search(first_third) and name_pat.search(last_quarter):
+            return 'format_b'
+        lines = text.splitlines()
+        if lines and sum(1 for l in lines if not l.strip()) / len(lines) > 0.35:
+            return 'format_c'
+        return 'generic'
+
+    _SECTION_STOP = (r'(?:EXPERIENCE|EDUCATION|PROJECTS?|WORK\s+HISTORY|CERTIFICATIONS?'
+                     r'|PUBLICATIONS?|AWARDS?|LANGUAGES?|INTERESTS?|SUMMARY|OBJECTIVE'
+                     r'|PROFILE|CONTACT|REFERENCES?)')
+
+    def _extract_skills_section(text: str, fmt: str) -> str:
+        if fmt == 'format_a':
+            # Section headers may be concatenated; use named section words as stop signal
+            pattern = (r'(?:SKILLS?(?:\s*TECHNICAL\s+SKILLS?)?|TECHNICAL\s+SKILLS?|CORE\s+SKILLS?)'
+                       r'\s*[\n:]?(.*?)(?=\n' + _SECTION_STOP + r'|\Z)')
+        elif fmt == 'format_c':
+            # Double-spaced layout: stop at blank line + known section header
+            pattern = (r'(?:TECHNICAL\s+SKILLS?|CORE\s+SKILLS?|SKILLS?)\s*[\n:]'
+                       r'(.*?)(?=\n\n' + _SECTION_STOP + r'|\Z)')
+        else:
+            # Generic / Format B: stop at any 4+ char ALL-CAPS line
+            pattern = (r'(?:TECHNICAL\s+SKILLS?|CORE\s+SKILLS?|SKILLS?)\s*[\n:]'
+                       r'(.*?)(?=\n[A-Z]{4,}[\s\n]|\Z)')
+        m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        return m.group(1).strip()[:1500] if m else ""
+
+    fmt = _detect_format(clean_text)
+
+    # Format A: insert newlines at name/title boundary in the header so the LLM
+    # sees "GAURICA PURI\nAI/MLOPS ENGINEER" instead of "GAURICA PURIAI/MLOPS ENGINEER"
+    if fmt == 'format_a':
+        header = clean_text[:300]
+        header = re.sub(r'([A-Z]{3,})([A-Z][a-z])', r'\1\n\2', header)  # PURIAI → PURI\nAI
+        header = re.sub(r'([A-Z]{3,})([|/])', r'\1\n\2', header)          # PURI|ML → PURI\n|ML
+        clean_text = header + clean_text[300:]
+
+    skills_section = _extract_skills_section(clean_text, fmt)
+    skills_hint = (f"\n\nSKILLS SECTION (extracted directly — use this for the skills field):\n{skills_section}"
+                   if skills_section else "")
+
+    # LLM-parse structured fields
     parsed = {"name": "", "title": "", "skills": ""}
     try:
-        from specialized_judges import call_ollama
+        from specialized_judges import call_ollama_async
         model = get_free_model()
         system = "You extract structured data from resume text. Return ONLY valid JSON, no markdown, no explanation."
-        prompt = f"""Extract these fields from the resume below:
-- name: the candidate's full name (exactly as written)
-- title: their primary/most recent job title (one title only, not a list)
-- skills: comma-separated list of up to 12 core technical skills (tools, languages, frameworks only — no soft skills)
+        prompt = f"""Extract structured fields from this resume. Resumes come in many formats — some have clear sections, some are dense text with no line breaks due to PDF extraction artifacts.
 
-Resume (top section):
-{full_text[:1500]}
+Rules:
+- name: the person's full name. It may appear at the top OR at the bottom of the resume (some templates put contact info at the end). Look in both the first 500 and last 500 characters. Names are usually 2-3 words, often ALL-CAPS. In PDF-extracted text, the name may run directly into a job title (e.g. "JANE DOESENIOR ENGINEER" — name is "JANE DOE"). Extract only the name, not the title, company, or location.
+- title: the professional headline or tagline from the resume header — the line that appears immediately after the person's name (e.g. "AI/MLOPS ENGINEER | RAG & LLM EVALUATION ARCHITECT | MACHINE LEARNING ENGINEER"). This is usually on the same line or directly below the name, before the contact info or summary. Return it exactly as written, including pipe separators if present. If no header tagline exists, fall back to the most recent job title from the EXPERIENCE section.
+- skills: comma-separated string of up to 25 specific technical skills. Look for a section headed "SKILLS", "TECHNICAL SKILLS", "TECHNICAL SKILLS", or "CORE SKILLS" anywhere in the resume. Extract individual skill items only — NOT category headers like "AI/ML", "Backend/Databases", "Cloud/DevOps". CRITICAL: only include skills explicitly listed in the resume text. Do NOT infer, guess, or add skills that are not written in the document. Return a plain comma-separated string, no brackets, no quotes. Exclude soft skills.
+
+Resume (start):
+{clean_text[:3000]}
+
+Resume (end):
+{clean_text[-1500:]}{skills_hint}
 
 Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
-        result = call_ollama(system, prompt, model, temperature=0.0)
+        result = await call_ollama_async(system, prompt, model, temperature=0.0)
         if result.get("success"):
             raw = result.get("data", "")
-            # Strip markdown fences if present
             raw = re.sub(r"```[a-z]*\n?", "", raw).strip()
             data = json.loads(raw)
-            parsed["name"] = str(data.get("name", "")).strip()
-            parsed["title"] = str(data.get("title", "")).strip()
+
+            # Post-process name: strip job-title keywords that got concatenated
+            # e.g. "GAURICA PURIAI/ML ENGINEER" → "GAURICA PURI"
+            name = str(data.get("name", "")).strip()
+            title_keywords = r'\b(ENGINEER|ANALYST|SCIENTIST|MANAGER|DEVELOPER|ARCHITECT|INTERN|LEAD|DIRECTOR|CONSULTANT|SPECIALIST|OFFICER|DESIGNER|RESEARCHER|ASSOCIATE)\b'
+            name_match = re.search(title_keywords, name, re.IGNORECASE)
+            if name_match:
+                name = name[:name_match.start()].strip().rstrip('|/-,')
+            parsed["name"]   = name
+            parsed["title"]  = str(data.get("title", "")).strip()
             parsed["skills"] = str(data.get("skills", "")).strip()
     except Exception:
-        pass  # structured parsing is best-effort; raw text is always returned
+        pass
 
     return {
-        "text": full_text,
-        "name": parsed["name"],
-        "title": parsed["title"],
-        "skills": parsed["skills"],
-        "extraction_method": extraction_method,
-        "confidence": confidence,
+        "text":               full_text,
+        "name":               parsed["name"],
+        "title":              parsed["title"],
+        "skills":             parsed["skills"],
+        "experience_years":   experience_years,
+        "extraction_method":  extraction_method,
+        "confidence":         confidence,
     }
 
 
@@ -1619,13 +1827,13 @@ async def fetch_job_url(req: FetchJobURLRequest):
             detail="Could not extract job description — the page may require login or JavaScript rendering (LinkedIn requires auth)"
         )
 
-    raw_text = raw_text[:5000]  # cap before LLM call
+    raw_text = raw_text[:15000]  # cap before LLM call
 
     # Step 2: LLM parses structured fields + cleans the JD text
     # Works even on noisy LinkedIn HTML — the model can find signal in the noise
     structured = {"title": "", "company": "", "experience_required": "", "skills_required": "", "job_description": raw_text}
     try:
-        from specialized_judges import call_ollama
+        from specialized_judges import call_ollama_async
         model = get_free_model()
         system = "You extract structured job posting data. Return ONLY valid JSON, no markdown, no explanation."
         prompt = f"""From the job posting text below, extract these fields:
@@ -1633,14 +1841,14 @@ async def fetch_job_url(req: FetchJobURLRequest):
 - company: company name only (e.g. "Talently")
 - experience_required: years/level of experience (e.g. "1-4 years" or "Mid-Senior")
 - skills_required: comma-separated list of up to 12 core technical skills only
-- job_description: the clean job description text — remove all navigation, "Sign in", "Skip to main content", similar jobs sections, and other page noise. Keep only the actual job posting content.
+- job_description: the COMPLETE full job description text verbatim — do NOT summarize, shorten, or paraphrase. Remove only page chrome (navigation, "Sign in", "Skip to main content", cookie banners, footer legal text, "similar jobs" sections). Keep ALL actual job posting content including responsibilities, requirements, about the company, benefits, and any other job-relevant sections.
 
 Job posting text:
 {raw_text}
 
 Return exactly: {{"title": "...", "company": "...", "experience_required": "...", "skills_required": "...", "job_description": "..."}}"""
 
-        result = call_ollama(system, prompt, model, temperature=0.0)
+        result = await call_ollama_async(system, prompt, model, temperature=0.0)
         if result.get("success"):
             raw = re.sub(r"```[a-z]*\n?", "", result.get("data", "")).strip()
             # Extract JSON from response (model may add reasoning before JSON for deepseek-r1)
@@ -1664,6 +1872,55 @@ Return exactly: {{"title": "...", "company": "...", "experience_required": "..."
         "experience_required": structured["experience_required"],
         "skills_required":     structured["skills_required"],
         "source_url":          url,
+    }
+
+
+class ParseJDTextRequest(BaseModel):
+    text: str
+
+@app.post("/parse-jd-text")
+async def parse_jd_text(req: ParseJDTextRequest):
+    """Parse raw pasted job description text with LLM — no HTTP fetch needed."""
+    raw_text = req.text.strip()[:15000]
+    structured = {"title": "", "company": "", "experience_required": "", "skills_required": "", "job_description": raw_text}
+    try:
+        from specialized_judges import call_ollama_async
+        model = get_free_model()
+        system = "You extract structured job posting data. Return ONLY valid JSON, no markdown, no explanation."
+        prompt = f"""From the job posting text below, extract these fields:
+- title: job title only (e.g. "Applied AI Engineer")
+- company: company name only (e.g. "Talently")
+- experience_required: years/level of experience (e.g. "1-4 years" or "Mid-Senior")
+- skills_required: comma-separated list of up to 12 core technical skills only
+- job_description: the COMPLETE full job description text verbatim — do NOT summarize, shorten, or paraphrase. Remove only page chrome (navigation, "Sign in", cookie banners, footer legal text, "similar jobs" sections). Keep ALL actual job posting content including responsibilities, requirements, about the company, benefits, and any other job-relevant sections.
+
+Job posting text:
+{raw_text}
+
+Return exactly: {{"title": "...", "company": "...", "experience_required": "...", "skills_required": "...", "job_description": "..."}}"""
+
+        result = await call_ollama_async(system, prompt, model, temperature=0.0)
+        if result.get("success"):
+            raw = re.sub(r"```[a-z]*\n?", "", result.get("data", "")).strip()
+            json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                structured["title"]               = str(data.get("title", "")).strip()
+                structured["company"]             = str(data.get("company", "")).strip()
+                structured["experience_required"] = str(data.get("experience_required", "")).strip()
+                structured["skills_required"]     = str(data.get("skills_required", "")).strip()
+                clean_jd = str(data.get("job_description", "")).strip()
+                if len(clean_jd) > 100:
+                    structured["job_description"] = clean_jd
+    except Exception:
+        pass
+
+    return {
+        "title":               structured["title"],
+        "company":             structured["company"],
+        "experience_required": structured["experience_required"],
+        "skills_required":     structured["skills_required"],
+        "job_description":     structured["job_description"],
     }
 
 
