@@ -1220,37 +1220,6 @@ Job snippet: {(run.get('job_description') or '')[:300]}"""
     return {"summary": f"Overall match score: {score}%. Review individual judge scores for details."}
 
 
-class InterviewPrepRequest(BaseModel):
-    result_id: str
-    model: str = "deepseek-r1:14b"
-    force_regen: bool = False
-
-@app.post("/interview_prep")
-async def interview_prep(req: InterviewPrepRequest):
-    run = run_db.get_run(req.result_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Result not found")
-    pr = run.get("pipeline_result", {})
-    skills_data = pr.get("skills", {}).get("judge_result", {}).get("data", {})
-    missing = skills_data.get("missing_critical_skills", [])[:5]
-    system = "You generate targeted interview prep questions. Return a JSON array of objects with 'question' and 'tip' keys."
-    prompt = f"""Generate 5 interview questions for a candidate applying to this role.
-Focus on these skill gaps: {', '.join(missing) if missing else 'general fit'}
-Job description: {(run.get('job_description') or '')[:500]}
-Return JSON array: [{{"question": "...", "tip": "..."}}]"""
-    try:
-        from specialized_judges import call_ollama_async
-        result = await call_ollama_async(system, prompt, req.model, temperature=0.4)
-        if result.get("success"):
-            raw = re.sub(r"```[a-z]*\n?", "", result["data"]).strip()
-            match = re.search(r'\[.*\]', raw, re.DOTALL)
-            if match:
-                questions = json.loads(match.group())
-                return {"questions": questions}
-    except Exception:
-        pass
-    return {"questions": [{"question": "Tell me about your relevant experience for this role.", "tip": "Focus on specific projects and measurable outcomes."}]}
-
 
 @app.delete("/results/{result_id}")
 async def delete_result(result_id: str):
@@ -1647,7 +1616,7 @@ async def extract_pdf(file: UploadFile = File(...)):
         if not name_pat.search(first_third) and name_pat.search(last_quarter):
             return 'format_b'
         lines = text.splitlines()
-        if lines and sum(1 for l in lines if not l.strip()) / len(lines) > 0.35:
+        if lines and sum(1 for ln in lines if not ln.strip()) / len(lines) > 0.35:
             return 'format_c'
         return 'generic'
 
