@@ -15,40 +15,33 @@ Usage:
     python eval.py --faithfulness     # faithfulness audit only (no labels required)
 
 Requires:
-    - data/labels.csv populated with resume_id, job_id, fit_label (1=good fit, 0=bad fit)
-    - data/resumes.csv and data/jobs.csv to resolve IDs to text
-    - data/runs.db (SQLite) populated by prior pipeline runs
+    - Resumes, jobs, and labels stored in SQLite (data/runs.db)
+    - data/runs.db populated by prior pipeline runs
 
 How to add labels:
-    Option A: POST /feedback with resume_id, job_id, got_interview=true/false
-    Option B: Edit data/labels.csv directly — resume_id,job_id,fit_label,golden
+    POST /feedback with resume_id, job_id, got_interview=true/false
 """
 
 import argparse
-import csv
 import re
 import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-LABELS_CSV = BASE_DIR / "data" / "labels.csv"
-RESUMES_CSV = BASE_DIR / "data" / "resumes.csv"
-JOBS_CSV = BASE_DIR / "data" / "jobs.csv"
+
 # ── Loaders ───────────────────────────────────────────────────────────────────
 
-def load_csv(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    with open(path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+def _load_db():
+    sys.path.insert(0, str(BASE_DIR))
+    import db
+    db.init_db()
+    return db
 
 
 def load_pipeline_results() -> list[dict]:
     """Load all pipeline runs from SQLite (data/runs.db)."""
-    import sys
-    sys.path.insert(0, str(BASE_DIR))
     from db import list_runs
-    rows = list_runs(limit=1000)
+    rows = list_runs(limit=1000)  # None user_id = all users (admin/eval context)
     results = []
     for row in rows:
         pr = row.get("pipeline_data") or {}
@@ -554,17 +547,18 @@ def main():
     if args.faithfulness:
         sys.exit(0)
 
-    labels = load_csv(LABELS_CSV)
-    resumes = load_csv(RESUMES_CSV)
-    jobs = load_csv(JOBS_CSV)
+    db = _load_db()
+    labels  = db.get_labels()
+    resumes = db.get_resumes()
+    jobs    = db.get_jobs()
 
     print(f"  Labels:          {len(labels)} rows")
     print(f"  Resumes:         {len(resumes)} rows")
     print(f"  Jobs:            {len(jobs)} rows")
 
     if not labels:
-        print("\n  labels.csv is empty — skipping correctness evaluation.")
-        print("  Run the pipeline, then mark outcomes via POST /feedback or edit labels.csv.")
+        print("\n  No labels found — skipping correctness evaluation.")
+        print("  Run the pipeline, then mark outcomes via POST /feedback.")
         sys.exit(0)
 
     matched = match_pipeline_to_labels(pipeline_results, resumes, jobs, labels)

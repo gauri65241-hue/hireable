@@ -1,0 +1,27 @@
+Staff Software Engineer – Platform Team
+
+About the Role
+We are looking for a Staff Software Engineer to join our Platform team. You will lead the design
+and implementation of core infrastructure services used by 50+ internal teams.
+
+Requirements
+- 7+ years of software engineering experience
+- 3+ years in a senior or staff-level IC role
+- Strong expertise in Python or Go
+- Deep experience with distributed systems (microservices, event-driven architecture)
+- Hands-on AWS experience (ECS, Lambda, RDS, S3)
+- Experience with Kubernetes and container orchestration
+- Strong SQL and database performance optimization skills
+- Demonstrated experience leading technical projects and mentoring engineers
+
+Nice to Have
+- Experience with Kafka or other message brokers
+- Infrastructure-as-code (Terraform, CDK)
+- Prior experience in a high-growth startup or scale-up environment
+
+Responsibilities
+- Design and own platform services serving millions of users
+- Set technical direction and engineering standards for the team
+- Partner with product and infrastructure teams on cross-cutting concerns
+- Conduct technical interviews and contribute to hiring decisions
+- Mentor junior and mid-level engineers

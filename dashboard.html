@@ -7,6 +7,7 @@
     <title>hireable | AI Resume Scorer</title>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -21,72 +22,83 @@
     </script>
     <style>
         :root {
-            --bg: #09090B;
-            --surface: #111113;
-            --surface2: #18181B;
-            --surface3: #1F1F23;
-            --border: #27272A;
-            --border2: #3F3F46;
-            --text: #FAFAFA;
-            --text2: #A1A1AA;
-            --text3: #71717A;
-            --accent: #6366F1;
-            --accent-light: #818CF8;
-            --accent-bg: rgba(99, 102, 241, .12);
-            --accent-border: rgba(99, 102, 241, .3);
-            --green: #22C55E;
-            --green-bg: rgba(34, 197, 94, .1);
-            --amber: #F59E0B;
-            --amber-bg: rgba(245, 158, 11, .1);
-            --red: #EF4444;
-            --red-bg: rgba(239, 68, 68, .1);
-            --radius: 10px;
+            /* Backgrounds */
+            --bg:       #080809;
+            --surface:  #0e0e10;
+            --surface2: #141416;
+            --surface3: #1a1a1e;
+            --surface4: #202024;
+
+            /* Borders */
+            --border:  rgba(255,255,255,.07);
+            --border2: rgba(255,255,255,.12);
+            --border3: rgba(255,255,255,.18);
+
+            /* Text */
+            --text:  #F2F2F5;
+            --text2: #8E8EA0;
+            --text3: #5C5C72;
+
+            /* Accent — indigo */
+            --accent:        #6366F1;
+            --accent-dark:   #4F46E5;
+            --accent-light:  #818CF8;
+            --accent-bg:     rgba(99,102,241,.10);
+            --accent-border: rgba(99,102,241,.28);
+            --accent-glow:   rgba(99,102,241,.20);
+
+            /* Semantic */
+            --green:      #22D3A0;
+            --green-bg:   rgba(34,211,160,.09);
+            --green-border: rgba(34,211,160,.22);
+            --amber:      #F5A623;
+            --amber-bg:   rgba(245,166,35,.09);
+            --amber-border: rgba(245,166,35,.22);
+            --red:        #F0614F;
+            --red-bg:     rgba(240,97,79,.09);
+            --red-border: rgba(240,97,79,.22);
+
+            /* Shape */
+            --radius:    10px;
             --radius-sm: 6px;
-            --shadow: 0 1px 3px rgba(0, 0, 0, .4);
-            --shadow-lg: 0 8px 32px rgba(0, 0, 0, .6);
-            --sidebar: 224px;
+            --radius-lg: 14px;
+
+            /* Shadow */
+            --shadow:    0 1px 2px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05);
+            --shadow-lg: 0 16px 48px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.06);
+
+            /* Layout */
+            --sidebar: 220px;
+            --topbar:  52px;
+
+            /* Type */
             --font-display: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
-            --font-mono: 'DM Mono', monospace;
+            --font-body:    'DM Sans', sans-serif;
+            --font-mono:    'DM Mono', monospace;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        /* ── Reset ──────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html {
             font-family: var(--font-body);
             background: var(--bg);
             color: var(--text);
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
         }
 
-        ::selection {
-            background: var(--accent);
-            color: #fff;
-        }
+        ::selection { background: var(--accent); color: #fff; }
 
-        ::-webkit-scrollbar {
-            width: 5px;
-            height: 5px;
-        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--surface4); border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
 
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border2);
-            border-radius: 99px;
-        }
-
-        .app {
-            display: flex;
-            min-height: 100vh;
-        }
+        /* ── Layout ─────────────────────────────────────────── */
+        .app { display: flex; min-height: 100vh; }
 
         .sidebar {
             width: var(--sidebar);
@@ -95,8 +107,7 @@
             display: flex;
             flex-direction: column;
             position: fixed;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             height: 100vh;
             z-index: 100;
         }
@@ -107,81 +118,70 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            background: var(--bg);
         }
 
+        /* ── Sidebar ─────────────────────────────────────────── */
         .sidebar-logo {
-            padding: 22px 20px 18px;
+            padding: 20px 16px 16px;
             border-bottom: 1px solid var(--border);
         }
 
-        .logo-mark {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-        }
+        .logo-mark { display: flex; align-items: center; gap: 10px; }
 
         .logo-icon {
-            width: 30px;
-            height: 30px;
-            background: var(--accent);
-            border-radius: 7px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent) 0%, #8B5CF6 100%);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
             flex-shrink: 0;
+            box-shadow: 0 0 0 1px rgba(99,102,241,.3), 0 4px 12px rgba(99,102,241,.25);
         }
 
         .logo-name {
             font-family: var(--font-display);
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 800;
-            letter-spacing: -0.3px;
+            letter-spacing: -0.4px;
+            background: linear-gradient(120deg, #fff 30%, var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .logo-tag {
-            font-size: 10.5px;
-            color: var(--text3);
-            margin-top: 2px;
-        }
+        .logo-tag { font-size: 10px; color: var(--text3); margin-top: 1px; letter-spacing: 0.2px; }
 
-        .sidebar-nav {
-            padding: 10px 10px;
-            flex: 1;
-            overflow-y: auto;
-        }
+        .sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
 
         .nav-label {
-            font-size: 10px;
-            font-weight: 600;
+            font-size: 9.5px;
+            font-weight: 700;
             color: var(--text3);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            padding: 10px 10px 4px;
+            letter-spacing: 1px;
+            padding: 12px 8px 5px;
         }
 
         .nav-item {
             display: flex;
             align-items: center;
             gap: 9px;
-            padding: 8px 10px;
+            padding: 7px 10px;
             border-radius: var(--radius-sm);
             cursor: pointer;
             color: var(--text2);
             font-size: 13px;
             font-weight: 500;
-            transition: all 0.15s;
+            transition: all 0.12s;
             width: 100%;
             text-align: left;
             background: none;
             border: none;
             font-family: var(--font-body);
+            position: relative;
         }
 
-        .nav-item:hover {
-            background: var(--surface2);
-            color: var(--text);
-        }
+        .nav-item:hover { background: var(--surface2); color: var(--text); }
 
         .nav-item.active {
             background: var(--accent-bg);
@@ -189,106 +189,83 @@
             font-weight: 600;
         }
 
-        .nav-item svg {
-            width: 15px;
-            height: 15px;
-            flex-shrink: 0;
-            opacity: 0.7;
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 20%; bottom: 20%;
+            width: 2.5px;
+            background: var(--accent);
+            border-radius: 0 2px 2px 0;
         }
 
-        .nav-item.active svg {
-            opacity: 1;
-        }
+        .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.6; transition: opacity 0.12s; }
+        .nav-item:hover svg { opacity: 0.9; }
+        .nav-item.active svg { opacity: 1; }
 
+        /* ── Topbar ─────────────────────────────────────────── */
         .topbar {
             background: var(--surface);
             border-bottom: 1px solid var(--border);
-            padding: 0 28px;
-            height: 56px;
+            padding: 0 24px;
+            height: var(--topbar);
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
             position: sticky;
             top: 0;
             z-index: 50;
+            backdrop-filter: blur(8px);
         }
 
         .topbar-title {
             font-family: var(--font-display);
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             letter-spacing: -0.2px;
+            color: var(--text);
         }
 
-        .topbar-right {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
         .icon-btn {
-            width: 32px;
-            height: 32px;
+            width: 30px; height: 30px;
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text2);
-            transition: all 0.15s;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text3);
+            transition: all 0.12s;
         }
+        .icon-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
 
-        .icon-btn:hover {
-            background: var(--surface3);
-            color: var(--text);
-        }
+        /* ── Content ────────────────────────────────────────── */
+        .content { padding: 24px; flex: 1; max-width: 1200px; }
 
-        .content {
-            padding: 24px 28px;
-            flex: 1;
-            overflow-y: auto;
-        }
-
-        .page {
-            display: none;
-        }
-
-        .page.active {
-            display: block;
-            animation: fadeIn 0.2s ease;
-        }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.18s ease; }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(4px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
-        .page-header {
-            margin-bottom: 22px;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
+
+        /* ── Page header ────────────────────────────────────── */
+        .page-header { margin-bottom: 24px; }
 
         .page-header h1 {
             font-family: var(--font-display);
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
-            letter-spacing: -0.4px;
+            letter-spacing: -0.5px;
             margin-bottom: 4px;
         }
 
-        .page-header p {
-            color: var(--text2);
-            font-size: 13px;
-        }
+        .page-header p { color: var(--text2); font-size: 13px; }
 
         .page-toolbar {
             display: flex;
@@ -296,20 +273,18 @@
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 12px;
-            margin-bottom: 22px;
+            margin-bottom: 20px;
         }
 
+        /* ── Cards ──────────────────────────────────────────── */
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
             padding: 18px;
-            transition: border-color 0.2s;
+            transition: border-color 0.15s;
         }
-
-        .card:hover {
-            border-color: var(--border2);
-        }
+        .card:hover { border-color: var(--border2); }
 
         .card-header {
             display: flex;
@@ -319,11 +294,13 @@
         }
 
         .card-title {
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 700;
             letter-spacing: -0.1px;
+            color: var(--text);
         }
 
+        /* ── Stat cards ─────────────────────────────────────── */
         .stats-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -335,372 +312,476 @@
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 16px;
+            padding: 16px 18px;
             position: relative;
             overflow: hidden;
-            transition: all 0.2s;
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
 
-        .stat-card::before {
+        .stat-card::after {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: var(--accent);
-            opacity: 0;
-            transition: opacity 0.2s;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(99,102,241,.05) 0%, transparent 60%);
+            pointer-events: none;
         }
 
-        .stat-card:hover::before {
-            opacity: 1;
-        }
-
-        .stat-card:hover {
-            border-color: var(--border2);
-        }
+        .stat-card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
 
         .stat-value {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: 800;
             font-family: var(--font-display);
-            margin-bottom: 4px;
+            margin-bottom: 3px;
+            letter-spacing: -0.5px;
         }
 
         .stat-label {
-            font-size: 11px;
+            font-size: 10.5px;
             color: var(--text3);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .stat-change {
-            font-size: 11px;
+            letter-spacing: 0.6px;
             font-weight: 600;
-            margin-top: 4px;
         }
 
-        .stat-change.positive {
-            color: var(--green);
-        }
+        .stat-change { font-size: 11px; font-weight: 600; margin-top: 5px; }
+        .stat-change.positive { color: var(--green); }
+        .stat-change.negative { color: var(--red); }
 
-        .stat-change.negative {
-            color: var(--red);
-        }
+        /* ── Grid ───────────────────────────────────────────── */
+        .grid { display: grid; gap: 16px; }
+        .grid.two   { grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr); }
+        .grid.three { grid-template-columns: repeat(3, 1fr); }
 
-        .grid {
-            display: grid;
-            gap: 16px;
-        }
-
-        .grid.two {
-            grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
-        }
-
-        .grid.three {
-            grid-template-columns: repeat(3, 1fr);
-        }
-
+        /* ── Buttons ────────────────────────────────────────── */
         .btn {
             background: var(--accent);
-            color: white;
+            color: #fff;
             border: none;
             padding: 8px 16px;
             border-radius: var(--radius-sm);
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.12s;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
+            font-family: var(--font-body);
+            box-shadow: 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08);
         }
-
-        .btn:hover {
-            background: var(--accent-light);
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .spinner {
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
+        .btn:hover { background: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
         .btn-secondary {
             background: var(--surface2);
             color: var(--text);
+            border: 1px solid var(--border2);
+            box-shadow: var(--shadow);
         }
-
-        .btn-secondary:hover {
-            background: var(--surface3);
-        }
+        .btn-secondary:hover { background: var(--surface3); border-color: var(--border3); box-shadow: none; }
 
         .btn-ghost {
             background: transparent;
             color: var(--text2);
+            box-shadow: none;
+            border: 1px solid transparent;
+        }
+        .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--border); box-shadow: none; }
+
+        .btn-sm { padding: 4px 10px; font-size: 11.5px; }
+        .btn-danger { background: var(--red); }
+        .btn-danger:hover { background: #f87171; box-shadow: 0 0 0 3px var(--red-bg); }
+
+        /* ── Spinner ────────────────────────────────────────── */
+        .spinner {
+            width: 13px; height: 13px;
+            border: 2px solid rgba(255,255,255,.25);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
         }
 
-        .btn-ghost:hover {
+        /* ── Pipeline progress panel ────────────────────────── */
+        #pipeline-progress {
+            display: none;
+            margin-top: 16px;
             background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
         }
+        .pp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .pp-title { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: -0.1px; }
+        .pp-elapsed { font-size: 11.5px; color: var(--text3); font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+        .pp-bar-wrap { height: 3px; background: var(--surface3); border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
+        .pp-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 2px; transition: width 0.5s cubic-bezier(.4,0,.2,1); width: 0%; }
+        .pp-stages { display: flex; flex-direction: column; gap: 5px; }
+        .pp-stage {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .pp-stage.pending { opacity: 0.4; }
+        .pp-stage.running { background: rgba(99,102,241,.08); border-color: rgba(99,102,241,.2); }
+        .pp-stage.done    { background: rgba(34,211,160,.06); border-color: rgba(34,211,160,.18); }
+        .pp-stage.failed  { background: rgba(240,97,79,.07);  border-color: rgba(240,97,79,.2); }
+        .pp-icon  { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+        .pp-name  { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); }
+        .pp-time  { font-size: 11px; color: var(--text3); font-variant-numeric: tabular-nums; font-family: var(--font-mono); min-width: 36px; text-align: right; }
+        .pp-score { font-size: 11.5px; font-weight: 700; min-width: 36px; text-align: right; font-family: var(--font-mono); }
+        .pp-score.high { color: var(--green); }
+        .pp-score.mid  { color: var(--amber); }
+        .pp-score.low  { color: var(--red); }
+        .pp-spinner { width: 11px; height: 11px; border: 2px solid rgba(99,102,241,.25); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 
-        .btn-sm {
-            padding: 4px 8px;
-            font-size: 11px;
-        }
+        /* Progress for other ops */
+        .op-progress { display: none; margin-top: 10px; }
+        .op-stage-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .op-stage-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+        .op-stage-item.active { color: var(--text); }
+        .op-stage-item.done-op { color: var(--green); }
 
-        .field {
-            margin-bottom: 14px;
-        }
+        /* ── Forms ──────────────────────────────────────────── */
+        .field { margin-bottom: 14px; }
 
         .field label {
             display: block;
-            margin-bottom: 7px;
+            margin-bottom: 6px;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
+            color: var(--text2);
+            letter-spacing: 0.1px;
         }
 
         .field input,
         .field textarea,
-        .field select {
+        .field select,
+        input[type="text"], input[type="email"], input[type="password"], textarea {
             width: 100%;
             padding: 8px 12px;
             background: var(--surface2);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border2);
             border-radius: var(--radius-sm);
             color: var(--text);
             font-family: var(--font-body);
             font-size: 13px;
+            transition: border-color 0.12s, box-shadow 0.12s;
         }
 
         .field input:focus,
         .field textarea:focus,
-        .field select:focus {
+        .field select:focus,
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="password"]:focus,
+        textarea:focus {
             outline: none;
             border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
         }
 
-        .field select {
+        .field select, select {
             -webkit-appearance: none;
-            -moz-appearance: none;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23A1A1AA' d='M6 9L2 5h8z'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%235C5C72' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 12px center;
-            background-size: 12px;
-            padding-right: 32px;
-        }
-        
-        .field select option {
-            background: var(--surface2);
+            background-position: right 11px center;
+            background-size: 10px;
+            padding-right: 30px;
+            background-color: var(--surface2);
             color: var(--text);
-        }
-        
-        /* Ensure all select elements have black/dark styling */
-        select {
-            background: var(--surface2);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-        
-        select option {
-            background: var(--surface2);
-            color: var(--text);
+            border: 1px solid var(--border2);
         }
 
-        .select-list {
-            display: grid;
-            gap: 8px;
-            max-height: 360px;
-            overflow-y: auto;
-            padding-right: 4px;
-        }
+        select option { background: var(--surface3); color: var(--text); }
+
+        /* ── Select list (resume/job picker) ────────────────── */
+        .select-list { display: grid; gap: 7px; max-height: 360px; overflow-y: auto; padding-right: 2px; }
 
         .select-item {
             display: grid;
-            grid-template-columns: 22px 1fr;
+            grid-template-columns: 18px 1fr;
             gap: 10px;
-            padding: 11px;
-            border: 1px solid var(--border2);
+            padding: 10px 12px;
+            border: 1px solid var(--border);
             border-radius: var(--radius-sm);
             background: var(--surface2);
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.12s;
         }
-
-        .select-item:hover {
-            border-color: var(--border);
-        }
-
-        .select-item.checked {
-            background: var(--accent-bg);
-            border-color: var(--accent-border);
-        }
-
-        .select-item input {
-            width: auto;
-            margin-top: 3px;
-        }
+        .select-item:hover { border-color: var(--border2); background: var(--surface3); }
+        .select-item.checked { background: var(--accent-bg); border-color: var(--accent-border); }
+        .select-item input { width: auto; margin-top: 2px; accent-color: var(--accent); }
 
         .select-item-title {
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12.5px;
             margin-bottom: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        .select-item-meta { font-size: 11px; color: var(--text3); }
 
-        .select-item-meta {
-            font-size: 11px;
-            color: var(--text3);
-        }
+        /* ── Tables ─────────────────────────────────────────── */
+        table { width: 100%; border-collapse: collapse; }
 
-        .analysis {
-            white-space: pre-wrap;
-            background: var(--surface3);
-            color: var(--text);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            line-height: 1.55;
-            font-family: var(--font-mono);
-            font-size: 12px;
-        }
-
-        .status-ok {
-            color: var(--green);
-            font-weight: 900;
-        }
-
-        .status-bad {
-            color: var(--red);
-            font-weight: 900;
-        }
-
-        .hint {
-            color: var(--text3);
-            font-size: 12px;
-        }
-
-        .empty {
-            text-align: center;
-            padding: 40px;
-            color: var(--text3);
-        }
-
-        .empty-icon {
-            font-size: 32px;
-            margin-bottom: 8px;
-            opacity: 0.5;
-        }
-
-        .scroll {
-            overflow: auto;
-            max-height: 520px;
-        }
-
-        #result-table-compact td,
-        #result-table-compact th {
-            padding: 5px 8px;
-            font-size: 0.75rem;
-            white-space: nowrap;
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        #result-list tr {
-            cursor: pointer;
-            transition: background 0.12s;
-        }
-
-        #result-list tr:hover {
-            background: var(--surface2);
-        }
-
-        #result-list tr.row-selected {
-            background: var(--surface3, rgba(99,102,241,0.12));
-            border-left: 3px solid var(--accent);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th,
-        td {
-            padding: 10px;
+        th, td {
+            padding: 9px 11px;
             border-bottom: 1px solid var(--border);
             text-align: left;
-            vertical-align: top;
+            vertical-align: middle;
             font-size: 12px;
         }
 
         th {
             color: var(--text3);
-            font-weight: 600;
+            font-weight: 700;
+            font-size: 10.5px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
+            background: var(--surface2);
+            position: sticky;
+            top: 0;
+            z-index: 2;
         }
 
+        tbody tr { transition: background 0.1s; }
+        tbody tr:hover { background: var(--surface2); }
+
+        #result-list tr { cursor: pointer; }
+        #result-list tr.row-selected { background: var(--accent-bg); }
+        #result-list tr.row-selected td:first-child { border-left: 2px solid var(--accent); }
+
+        #result-table-compact td,
+        #result-table-compact th { padding: 5px 8px; font-size: 0.72rem; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ── Score badges ────────────────────────────────────── */
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11.5px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            letter-spacing: 0.2px;
+        }
+        .score-high { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+        .score-mid  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+        .score-low  { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
+
+        /* ── Pills / Tags ────────────────────────────────────── */
         .pill {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 5px;
             font-size: 11px;
             font-weight: 600;
             margin: 2px;
         }
+        .pill.missing { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+        .pill.met     { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+        .pill.partial { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
 
-        .pill.missing {
-            background: var(--red-bg);
-            color: var(--red);
+        /* ── Misc ────────────────────────────────────────────── */
+        .analysis {
+            white-space: pre-wrap;
+            background: var(--surface3);
+            color: var(--text);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            line-height: 1.6;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            border: 1px solid var(--border);
         }
 
-        .pill.met {
-            background: var(--green-bg);
-            color: var(--green);
-        }
+        .status-ok  { color: var(--green); font-weight: 700; }
+        .status-bad { color: var(--red);   font-weight: 700; }
 
-        .pill.partial {
-            background: var(--amber-bg);
-            color: var(--amber);
-        }
+        .hint { color: var(--text3); font-size: 11.5px; }
 
+        .empty { text-align: center; padding: 48px 20px; color: var(--text3); }
+        .empty-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.4; display: block; }
+
+        .scroll { overflow: auto; max-height: 520px; }
+
+        /* ── Responsive ─────────────────────────────────────── */
         @media (max-width: 900px) {
-            .grid.two,
-            .grid.three {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
+            .grid.two, .grid.three { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* ── Card accent top line ───────────────────────────── */
+        .card { position: relative; }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent 5%, rgba(99,102,241,.18) 50%, transparent 95%);
+            pointer-events: none;
+        }
+
+        /* ── Page header accent underline ───────────────────── */
+        .page-header {
+            position: relative;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 0;
+            width: 40px; height: 2px;
+            background: var(--accent); border-radius: 2px;
+        }
+
+        /* ── Stat icon badge ────────────────────────────────── */
+        .stat-icon {
+            width: 34px; height: 34px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; margin-bottom: 10px;
+        }
+        .stat-icon.blue   { background: var(--accent-bg);            box-shadow: 0 0 0 1px var(--accent-border); }
+        .stat-icon.green  { background: var(--green-bg);             box-shadow: 0 0 0 1px var(--green-border); }
+        .stat-icon.amber  { background: var(--amber-bg);             box-shadow: 0 0 0 1px var(--amber-border); }
+        .stat-icon.purple { background: rgba(139,92,246,.1);         box-shadow: 0 0 0 1px rgba(139,92,246,.25); }
+        .stat-icon.red    { background: var(--red-bg);               box-shadow: 0 0 0 1px var(--red-border); }
+
+        /* ── Filter bar ─────────────────────────────────────── */
+        .filter-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 11px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            transition: border-color .12s, box-shadow .12s;
+        }
+        .filter-bar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .filter-bar input { border: none !important; background: transparent !important; box-shadow: none !important; padding: 8px 0 !important; flex: 1; font-size: 13px; }
+        .filter-bar svg   { color: var(--text3); flex-shrink: 0; width: 14px; height: 14px; }
+
+        /* ── Tab strip ──────────────────────────────────────── */
+        .tab-strip { display: flex; border-bottom: 1px solid var(--border); gap: 0; margin-bottom: 16px; }
+        .tab-strip button {
+            padding: 8px 13px; font-size: 12px; font-weight: 600; color: var(--text2);
+            cursor: pointer; border: none; border-bottom: 2px solid transparent;
+            margin-bottom: -1px; background: transparent; transition: all .12s;
+            font-family: var(--font-body); border-radius: 0; white-space: nowrap;
+        }
+        .tab-strip button:hover  { color: var(--text); background: rgba(255,255,255,.03); }
+        .tab-strip button.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
+        /* ── Status dot ─────────────────────────────────────── */
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+        .status-dot.ok   { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+        .status-dot.bad  { background: var(--red);   box-shadow: 0 0 0 3px var(--red-bg); }
+        .status-dot.warn { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-bg); }
+        .status-dot.pulse { animation: sdpulse 2s ease-in-out infinite; }
+        @keyframes sdpulse { 0%,100% { box-shadow: 0 0 0 2px var(--green-bg); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+        /* ── Service rows (health) ──────────────────────────── */
+        .svc-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+        .svc-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .svc-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+        .svc-name { font-size: 12.5px; font-weight: 600; flex: 1; color: var(--text); }
+        .svc-detail { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+        .svc-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 10.5px; font-weight: 700; }
+        .svc-badge.ok  { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+        .svc-badge.bad { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-border); }
+
+        /* ── Toolbar strip ──────────────────────────────────── */
+        .toolbar-strip {
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 10px;
+            padding: 10px 14px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+            margin-bottom: 16px;
+        }
+        .toolbar-strip .btn-group { display: flex; gap: 6px; align-items: center; }
+
+        /* ── Select item avatar ─────────────────────────────── */
+        .si-avatar {
+            width: 28px; height: 28px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10.5px; font-weight: 800; font-family: var(--font-display);
+            flex-shrink: 0;
+        }
+        .select-item { grid-template-columns: 30px 1fr; align-items: start; }
+
+        /* ── Section divider ────────────────────────────────── */
+        .divider { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+        .divider span { font-size: 10.5px; color: var(--text3); white-space: nowrap; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+        .divider::before, .divider::after { content:''; flex:1; height:1px; background: var(--border); }
+
+        /* ── Card title with icon ───────────────────────────── */
+        .card-title-icon { width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 7px; vertical-align: middle; }
+
     </style>
 </head>
 
 <body>
+
+    <!-- Auth overlay -->
+    <div id="auth-overlay" style="display:none;position:fixed;inset:0;background:rgba(8,8,9,.96);backdrop-filter:blur(12px);z-index:10000;align-items:center;justify-content:center;">
+        <div style="width:100%;max-width:380px;padding:0 20px;">
+            <!-- Logo -->
+            <div style="text-align:center;margin-bottom:28px;">
+                <div style="display:inline-flex;align-items:center;gap:11px;margin-bottom:10px;">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--accent) 0%,#8B5CF6 100%);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 0 1px rgba(99,102,241,.3),0 6px 20px rgba(99,102,241,.3);">🎯</div>
+                    <span style="font-family:var(--font-display);font-size:22px;font-weight:800;background:linear-gradient(120deg,#fff 40%,var(--accent-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">hireable</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text3);letter-spacing:0.2px;">AI Resume Scorer — Private Beta</div>
+            </div>
+
+            <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px;box-shadow:var(--shadow-lg);">
+                <!-- Tab switcher -->
+                <div style="display:flex;background:var(--surface2);border-radius:8px;padding:3px;margin-bottom:22px;gap:3px;">
+                    <button id="tab-login" onclick="switchAuthTab('login')"
+                        style="flex:1;padding:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;border-radius:6px;background:var(--accent);color:#fff;font-family:var(--font-body);transition:all .15s;">
+                        Sign In
+                    </button>
+                    <button id="tab-register" onclick="switchAuthTab('register')"
+                        style="flex:1;padding:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;border-radius:6px;background:transparent;color:var(--text2);font-family:var(--font-body);transition:all .15s;">
+                        Create Account
+                    </button>
+                </div>
+
+                <div id="auth-error" style="display:none;background:var(--red-bg);color:var(--red);font-size:12px;padding:9px 12px;border-radius:7px;margin-bottom:16px;border:1px solid var(--red-border);"></div>
+
+                <div style="margin-bottom:14px;">
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;margin-bottom:6px;">Email</label>
+                    <input id="auth-email" type="email" placeholder="you@company.com" autocomplete="email"
+                        style="width:100%;padding:9px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--font-body);transition:border-color .12s,box-shadow .12s;box-sizing:border-box;"
+                        onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--accent-glow)'"
+                        onblur="this.style.borderColor='';this.style.boxShadow=''"
+                        onkeydown="if(event.key==='Enter')document.getElementById('auth-password').focus()"/>
+                </div>
+                <div style="margin-bottom:22px;">
+                    <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;display:block;margin-bottom:6px;">Password</label>
+                    <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
+                        style="width:100%;padding:9px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-family:var(--font-body);transition:border-color .12s,box-shadow .12s;box-sizing:border-box;"
+                        onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--accent-glow)'"
+                        onblur="this.style.borderColor='';this.style.boxShadow=''"
+                        onkeydown="if(event.key==='Enter')submitAuth()"/>
+                </div>
+                <button onclick="submitAuth()" id="auth-submit-btn"
+                    style="width:100%;padding:10px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;font-family:var(--font-body);box-shadow:0 1px 2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.1);transition:all .12s;"
+                    onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='var(--accent)'">
+                    Sign In
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="app">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -758,7 +839,31 @@
                     </svg>
                     Career Paths
                 </button>
+                <button class="nav-item" onclick="showView('benchmark')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Benchmark
+                </button>
             </nav>
+            <div style="padding:10px 12px;border-top:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);transition:border-color .15s;"
+                     onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+                    <div style="width:28px;height:28px;background:linear-gradient(135deg,var(--accent) 0%,#8B5CF6 100%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;box-shadow:0 0 0 1px rgba(99,102,241,.3);">
+                        <span id="auth-avatar-letter" style="-webkit-text-fill-color:#fff;font-family:var(--font-display);font-weight:700;font-size:11px;">?</span>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div id="auth-status-label" style="font-size:11.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not signed in</div>
+                        <div id="auth-status-sub" style="font-size:10px;color:var(--text3);margin-top:1px;">Sign in to continue</div>
+                    </div>
+                    <button id="auth-logout-btn" onclick="logout()" title="Sign out"
+                        style="display:none;width:24px;height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text3);font-size:14px;cursor:pointer;align-items:center;justify-content:center;transition:all .12s;flex-shrink:0;"
+                        onmouseover="this.style.background='var(--red-bg)';this.style.borderColor='var(--red-border)';this.style.color='var(--red)'"
+                        onmouseout="this.style.background='transparent';this.style.borderColor='var(--border)';this.style.color='var(--text3)'">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/></svg>
+                    </button>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -786,22 +891,34 @@
                     </div>
                     <div class="stats-row">
                         <div class="stat-card">
-                            <div class="stat-value" id="api-status">Checking...</div>
+                            <div class="stat-icon blue">
+                                <svg width="16" height="16" fill="none" stroke="var(--accent-light)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            </div>
+                            <div class="stat-value" id="api-status" style="font-size:18px;">…</div>
                             <div class="stat-label">API Status</div>
                             <div class="stat-change" id="api-status-detail"></div>
                         </div>
                         <div class="stat-card">
+                            <div class="stat-icon green">
+                                <svg width="16" height="16" fill="none" stroke="var(--green)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            </div>
                             <div class="stat-value" id="resume-count">-</div>
                             <div class="stat-label">Resumes</div>
-                            <div class="stat-change positive">Database</div>
+                            <div class="stat-change positive">In database</div>
                         </div>
                         <div class="stat-card">
+                            <div class="stat-icon amber">
+                                <svg width="16" height="16" fill="none" stroke="var(--amber)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </div>
                             <div class="stat-value" id="job-count">-</div>
                             <div class="stat-label">Jobs</div>
-                            <div class="stat-change positive">Database</div>
+                            <div class="stat-change positive">In database</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-value" id="llm-status">-</div>
+                            <div class="stat-icon purple">
+                                <svg width="16" height="16" fill="none" stroke="#a78bfa" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div class="stat-value" id="llm-status" style="font-size:18px;">-</div>
                             <div class="stat-label">LLM Service</div>
                             <div class="stat-change" id="llm-status-detail"></div>
                         </div>
@@ -814,6 +931,7 @@
                             <div class="empty">Loading health information...</div>
                         </div>
                     </div>
+
                 </section>
 
                 <!-- Resumes View -->
@@ -822,14 +940,15 @@
                         <h1>Resumes</h1>
                         <p>Browse candidate profiles, upload new resumes, and manage your talent pool.</p>
                     </div>
-                    <div class="page-toolbar">
-                        <div style="background: var(--surface2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
-                            <label style="font-size: 11px; color: var(--text); margin-bottom: 8px; display: block; font-weight: 600;">Filter Resumes</label>
-                            <input id="resume-filter" placeholder="Filter by name, title, or ID" oninput="renderResumes()" class="field" style="margin: 0; width: 100%; background: var(--surface3); border-color: var(--border2);">
+                    <div class="toolbar-strip">
+                        <div class="filter-bar" style="flex:1;max-width:340px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input id="resume-filter" placeholder="Search by name, title, or ID…" oninput="renderResumes()">
                         </div>
-                        <div>
-                            <button class="btn btn-secondary" onclick="setChecks('resume-check', true)">Select All</button>
-                            <button class="btn btn-secondary" onclick="setChecks('resume-check', false)">Clear All</button>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary btn-sm" onclick="setChecks('resume-check', true)">Select All</button>
+                            <button class="btn btn-ghost btn-sm" onclick="setChecks('resume-check', false)">Clear</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteSelectedResumes()">Delete Selected</button>
                         </div>
                     </div>
                     <div class="grid two">
@@ -887,14 +1006,15 @@
                         <h1>Jobs</h1>
                         <p>Browse job postings, add new positions, and manage your job database.</p>
                     </div>
-                    <div class="page-toolbar">
-                        <div style="background:var(--surface2);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border);">
-                            <label style="font-size:11px;color:var(--text);margin-bottom:8px;display:block;font-weight:600;">Filter Jobs</label>
-                            <input id="job-filter" placeholder="Filter by company, role, or ID" oninput="renderJobs()" class="field" style="margin:0;width:100%;background:var(--surface3);border-color:var(--border2);">
+                    <div class="toolbar-strip">
+                        <div class="filter-bar" style="flex:1;max-width:340px;">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input id="job-filter" placeholder="Search by company, role, or ID…" oninput="renderJobs()">
                         </div>
-                        <div>
-                            <button class="btn btn-secondary" onclick="setChecks('job-check', true)">Select All</button>
-                            <button class="btn btn-secondary" onclick="setChecks('job-check', false)">Clear All</button>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary btn-sm" onclick="setChecks('job-check', true)">Select All</button>
+                            <button class="btn btn-ghost btn-sm" onclick="setChecks('job-check', false)">Clear</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteSelectedJobs()">Delete Selected</button>
                         </div>
                     </div>
                     <div class="grid two">
@@ -902,12 +1022,12 @@
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">Add Job</h3>
-                                <div style="display:flex;gap:6px;">
-                                    <button id="tab-manual" class="btn btn-sm" onclick="setJobInputMode('manual')">Manual</button>
-                                    <button id="tab-url"    class="btn btn-sm btn-secondary" onclick="setJobInputMode('url')">URL Fetch</button>
-                                    <button id="tab-bulk"   class="btn btn-sm btn-secondary" onclick="setJobInputMode('bulk')">Bulk URLs</button>
-                                    <button id="tab-paste"  class="btn btn-sm btn-secondary" onclick="setJobInputMode('paste')">Quick Paste</button>
-                                </div>
+                            </div>
+                            <div class="tab-strip" style="margin:0 -18px 16px;padding:0 18px;">
+                                <button id="tab-manual" class="active" onclick="setJobInputMode('manual')">Manual</button>
+                                <button id="tab-url"    onclick="setJobInputMode('url')">URL Fetch</button>
+                                <button id="tab-bulk"   onclick="setJobInputMode('bulk')">Bulk URLs</button>
+                                <button id="tab-paste"  onclick="setJobInputMode('paste')">Quick Paste</button>
                             </div>
 
                             <!-- MODE: Manual -->
@@ -1042,9 +1162,9 @@
                                 <option value="custom">⚙️ Custom</option>
                             </select>
                             <select id="ollama-model-select" style="width:200px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;" onchange="document.getElementById('model-name-input').value=this.value">
-                                <option value="deepseek-r1:14b" selected>deepseek-r1:14b</option>
+                                <option value="cogito:14b" selected>cogito:14b</option>
                             </select>
-                            <input id="model-name-input" type="text" value="deepseek-r1:14b" placeholder="model name" style="display:none;width:200px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;">
+                            <input id="model-name-input" type="text" value="cogito:14b" placeholder="model name" style="display:none;width:200px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;">
                             <input id="api-key-input" type="password" placeholder="API Key" style="display:none;width:220px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;">
                             <input id="api-base-url-input" type="text" placeholder="Base URL (e.g. https://openrouter.ai/api/v1)" style="display:none;width:280px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;">
                         </div>
@@ -1103,6 +1223,16 @@
                         <div style="margin-top: 12px;">
                             <button id="run-batch" class="btn">Run Analysis</button>
                         </div>
+
+                        <!-- Pipeline progress panel (shown during analysis) -->
+                        <div id="pipeline-progress">
+                            <div class="pp-header">
+                                <span class="pp-title">Analysis Pipeline</span>
+                                <span class="pp-elapsed" id="pp-elapsed">0s</span>
+                            </div>
+                            <div class="pp-bar-wrap"><div class="pp-bar" id="pp-bar"></div></div>
+                            <div class="pp-stages" id="pp-stages"></div>
+                        </div>
                         <div id="llm-summary" class="card" style="margin-top: 12px; display: none;">
                             <div class="card-header">
                                 <h3 class="card-title">✨ AI Summary</h3>
@@ -1120,6 +1250,7 @@
                                         <th>Score</th>
                                         <th>Skills</th>
                                         <th>Experience</th>
+                                        <th>ATS</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -1236,6 +1367,7 @@
                             <div id="ats-results" style="padding:16px;">
                                 <div style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0;">Run a check to see results</div>
                             </div>
+                            <div id="ats-deep-audit-results"></div>
                         </div>
                     </div>
                 </section>
@@ -1278,12 +1410,189 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Benchmark Tab -->
+                <section id="benchmark" class="page">
+                    <div class="page-header">
+                        <h1>Model Benchmark</h1>
+                        <p>Full 5-judge evaluation across all installed Ollama models — pass rate, confidence, latency, truncation, and consistency per judge.</p>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="card" style="margin-bottom:16px;">
+                        <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
+                            <div class="field" style="margin:0;flex:1;min-width:160px;">
+                                <label style="font-size:11px;">Judge Resume</label>
+                                <select id="fb-judge-resume" style="font-size:12px;"></select>
+                            </div>
+                            <div class="field" style="margin:0;flex:2;min-width:200px;">
+                                <label style="font-size:11px;">Jobs (select up to 3)</label>
+                                <select id="fb-job-select" multiple size="3" style="font-size:12px;height:70px;"></select>
+                            </div>
+                            <div class="field" style="margin:0;flex:1;min-width:160px;">
+                                <label style="font-size:11px;">Audit Resume</label>
+                                <select id="fb-audit-resume" style="font-size:12px;"></select>
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                <button class="btn btn-primary" id="fb-run-btn" onclick="runFullBenchmark()" style="font-size:12px;padding:6px 16px;white-space:nowrap;">Run Full Benchmark</button>
+                                <span id="fb-last-run" style="font-size:10px;color:var(--text3);text-align:center;"></span>
+                            </div>
+                        </div>
+                        <div id="fb-status" style="padding:8px 16px 12px;font-size:12px;color:var(--text2);display:none;border-top:1px solid var(--border);"></div>
+                    </div>
+
+                    <!-- Charts grid -->
+                    <div id="fb-charts" style="display:none;">
+
+                        <!-- Row 1: Pass rate + Latency heatmap -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Judge Pass Rate (%)</h3>
+                                <canvas id="chart-pass-rate" height="200"></canvas>
+                            </div>
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Avg Latency Heatmap (s)</h3>
+                                <div id="chart-latency-heatmap" style="font-size:11px;overflow-x:auto;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Confidence + First attempt + Score variance -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Avg Confidence Score</h3>
+                                <canvas id="chart-confidence" height="220"></canvas>
+                            </div>
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">First-Attempt Success (%)</h3>
+                                <canvas id="chart-first-attempt" height="220"></canvas>
+                            </div>
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Score Consistency (lower = better)</h3>
+                                <canvas id="chart-variance" height="220"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Row 3: Audit + Overall composite -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Audit Completeness</h3>
+                                <canvas id="chart-audit" height="160"></canvas>
+                            </div>
+                            <div class="card" style="padding:16px;">
+                                <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Overall Composite Score (40% pass · 20% conf · 20% first-att · 20% speed)</h3>
+                                <canvas id="chart-composite" height="160"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Per-model radar grid -->
+                        <div class="card" style="padding:16px;margin-bottom:16px;">
+                            <h3 style="font-size:13px;font-weight:600;margin-bottom:12px;">Per-Model Radar (Pass Rate per Dimension)</h3>
+                            <div id="chart-radars" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;"></div>
+                        </div>
+
+                        <!-- Recommended banner -->
+                        <div id="fb-recommended" style="margin-bottom:16px;"></div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
 
     <script>
-        // Global state
+        // ── Auth ──────────────────────────────────────────────────────────────
+        let _authTab = 'login';
+
+        function getToken() { return localStorage.getItem('hireable_token'); }
+        function setToken(t) { localStorage.setItem('hireable_token', t); }
+        function clearToken() { localStorage.removeItem('hireable_token'); }
+
+        // Intercept every fetch to inject Authorization header
+        const _nativeFetch = window.fetch.bind(window);
+        window.fetch = function(url, options = {}) {
+            const token = getToken();
+            const isSameOrigin = typeof url === 'string' &&
+                (!url.startsWith('http') || url.startsWith(window.location.origin));
+            if (token && isSameOrigin) {
+                options.headers = { ...(options.headers || {}), 'Authorization': `Bearer ${token}` };
+            }
+            return _nativeFetch(url, options);
+        };
+
+        function _isTokenExpired(token) {
+            try {
+                const exp = JSON.parse(atob(token.split('.')[1])).exp;
+                return exp && Date.now() / 1000 > exp;
+            } catch { return true; }
+        }
+
+        function checkAuth() {
+            const token = getToken();
+            if (!token || _isTokenExpired(token)) {
+                clearToken();
+                showAuthOverlay();
+            } else {
+                hideAuthOverlay();
+                updateAuthStatusIndicator();
+            }
+        }
+
+        function showAuthOverlay() {
+            document.getElementById('auth-overlay').style.display = 'flex';
+            setTimeout(() => document.getElementById('auth-email').focus(), 100);
+        }
+
+        function hideAuthOverlay() {
+            document.getElementById('auth-overlay').style.display = 'none';
+        }
+
+        function switchAuthTab(tab) {
+            _authTab = tab;
+            const isLogin = tab === 'login';
+            document.getElementById('tab-login').style.background = isLogin ? 'var(--accent)' : 'var(--surface2)';
+            document.getElementById('tab-login').style.color = isLogin ? '#fff' : 'var(--text2)';
+            document.getElementById('tab-register').style.background = !isLogin ? 'var(--accent)' : 'var(--surface2)';
+            document.getElementById('tab-register').style.color = !isLogin ? '#fff' : 'var(--text2)';
+            document.getElementById('auth-submit-btn').textContent = isLogin ? 'Login' : 'Create Account';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        async function submitAuth() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            const errEl = document.getElementById('auth-error');
+            const btn = document.getElementById('auth-submit-btn');
+            if (!email || !password) { errEl.textContent = 'Email and password required.'; errEl.style.display = 'block'; return; }
+            btn.disabled = true;
+            btn.textContent = _authTab === 'login' ? 'Logging in…' : 'Creating account…';
+            errEl.style.display = 'none';
+            try {
+                const resp = await _nativeFetch(`/auth/${_authTab}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+                setToken(data.access_token);
+                hideAuthOverlay();
+                updateAuthStatusIndicator();
+                refreshAll();
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = _authTab === 'login' ? 'Login' : 'Create Account';
+            }
+        }
+
+        function logout() {
+            clearToken();
+            showAuthOverlay();
+            updateAuthStatusIndicator();
+        }
+
+        // ── Global state ──────────────────────────────────────────────────────
         let resumes = {};
         let jobs = {};
         let results = [];
@@ -1298,7 +1607,7 @@
             try {
                 const data = await api('/ollama-models');
                 const models = data.models || [];
-                const defaultModel = data.default || 'deepseek-r1:14b';
+                const defaultModel = 'cogito:14b';
                 select.innerHTML = '';
                 models.forEach(name => {
                     const opt = document.createElement('option');
@@ -1320,8 +1629,22 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            if (!getToken()) return;
             refreshAll();
             populateOllamaModels();
+            fetch('/benchmark-ollama-results').then(r => r.json()).then(d => { if (d.success !== false) renderOllamaBenchmarkResults(d); }).catch(()=>{});
+            fetch('/benchmark-ollama-real-results').then(r => r.json()).then(d => { if (d.success !== false) renderOllamaRealBenchmarkResults(d); }).catch(()=>{});
+            fetch('/benchmark-ollama-full-results').then(r => r.json()).then(d => { if (d.success !== false) renderFullBenchmarkResults(d); }).catch(()=>{});
+
+            // Pre-fill provider/model/key from server .env
+            fetch('/client-config').then(r => r.json()).then(cfg => {
+                if (!cfg.api_key) return;
+                document.getElementById('provider-select').value = cfg.provider;
+                onProviderChange();
+                document.getElementById('api-key-input').value = cfg.api_key;
+                if (cfg.model) document.getElementById('model-name-input').value = cfg.model;
+            }).catch(() => {});
 
             // Resume form submit handler
             document.getElementById('resume-form').addEventListener('submit', async (e) => {
@@ -1384,6 +1707,33 @@
                     const tbody = document.getElementById('batch-results');
                     tbody.innerHTML = '';
 
+                    // ATS checks are pure heuristic — no LLM, no Ollama.
+                    // Fire all of them now without await so they race the LLM loop.
+                    // When each resolves it patches every rendered cell for that resume.
+                    const atsResultsByResumeId = {};
+                    [...selectedResumes].forEach(rid => {
+                        const resume = resumes.find(r => String(r.resume_id) === String(rid));
+                        if (!resume || !resume.text) return;
+                        fetch('/ats-check', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ resume_text: resume.text }),
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            atsResultsByResumeId[rid] = d;
+                            // Patch all table cells already rendered for this resume
+                            document.querySelectorAll(`[data-ats-rid="${rid}"]`).forEach(cell => {
+                                cell.innerHTML = _renderAtsGradeBadge(d, resume.text);
+                            });
+                        })
+                        .catch(() => {
+                            document.querySelectorAll(`[data-ats-rid="${rid}"]`).forEach(cell => {
+                                cell.innerHTML = '<span style="color:var(--text3);font-size:11px;">err</span>';
+                            });
+                        });
+                    });
+
                     const JUDGE_METRIC_MAP = {
                         skills:     'skills_coverage',
                         experience: 'experience_depth',
@@ -1423,11 +1773,95 @@
 
                             completedAnalyses++;
                             const progress = Math.round((completedAnalyses / totalAnalyses) * 100);
-                            document.getElementById('batch-status').textContent = `🔍 Analyzing ${resume.name || 'Resume ' + resumeId} vs ${job.title || 'Job ' + jobId} (${completedAnalyses}/${totalAnalyses} - ${progress}%)…`;
+                            document.getElementById('batch-status').textContent = `Analyzing ${resume.name || 'Resume'} vs ${job.title || 'Job'} (${completedAnalyses}/${totalAnalyses})`;
+                            // Reset progress panel for each new analysis pair
+                            document.getElementById('pipeline-progress').style.display = 'none';
 
                             try {
                                 if (useLLM) {
-                                    // Show live chart with all judges pending
+                                    // ── Pipeline progress panel setup ──────────────────────
+                                    const JUDGE_META = {
+                                        skills:     { label: 'Skills Judge',      weight: '25%' },
+                                        experience: { label: 'Experience Judge',  weight: '25%' },
+                                        seniority:  { label: 'Seniority Judge',   weight: '20%' },
+                                        relevancy:  { label: 'Relevancy Judge',   weight: '15%' },
+                                        impact:     { label: 'Impact Judge',      weight: '10%' },
+                                        coach:      { label: 'Coach',             weight: '' },
+                                    };
+                                    const PIPELINE_STAGES = ['ats', 'skills', 'experience', 'seniority', 'relevancy', 'impact', 'coach'];
+                                    const TOTAL_STEPS = PIPELINE_STAGES.length + 1; // +1 for complete
+
+                                    const ppPanel  = document.getElementById('pipeline-progress');
+                                    const ppBar    = document.getElementById('pp-bar');
+                                    const ppElapsed = document.getElementById('pp-elapsed');
+                                    const ppStages = document.getElementById('pp-stages');
+                                    ppPanel.style.display = 'block';
+                                    ppBar.style.width = '0%';
+
+                                    // Render initial stage rows
+                                    const stageState = {}; // name → {el, startMs}
+                                    function _renderStages() {
+                                        ppStages.innerHTML = '';
+                                        // ATS row (instant)
+                                        const atsRow = document.createElement('div');
+                                        atsRow.className = 'pp-stage pending';
+                                        atsRow.id = 'pp-stage-ats';
+                                        atsRow.innerHTML = `<span class="pp-icon">⏳</span><span class="pp-name">ATS Pre-flight</span><span class="pp-time" id="pp-time-ats">—</span><span class="pp-score" id="pp-score-ats"></span>`;
+                                        ppStages.appendChild(atsRow);
+                                        // Judge rows
+                                        for (const j of ['skills','experience','seniority','relevancy','impact']) {
+                                            const row = document.createElement('div');
+                                            row.className = 'pp-stage pending';
+                                            row.id = `pp-stage-${j}`;
+                                            const meta = JUDGE_META[j];
+                                            row.innerHTML = `<span class="pp-icon">⏳</span><span class="pp-name">${meta.label} <span style="font-weight:400;color:var(--text3);font-size:0.7rem;">${meta.weight}</span></span><span class="pp-time" id="pp-time-${j}">—</span><span class="pp-score" id="pp-score-${j}"></span>`;
+                                            ppStages.appendChild(row);
+                                            stageState[j] = { el: row, startMs: null };
+                                        }
+                                        // Coach row
+                                        const coachRow = document.createElement('div');
+                                        coachRow.className = 'pp-stage pending';
+                                        coachRow.id = 'pp-stage-coach';
+                                        coachRow.innerHTML = `<span class="pp-icon">⏳</span><span class="pp-name">Coach</span><span class="pp-time" id="pp-time-coach">—</span><span class="pp-score" id="pp-score-coach"></span>`;
+                                        ppStages.appendChild(coachRow);
+                                    }
+                                    _renderStages();
+
+                                    let doneCount = 0;
+                                    function _markStage(name, status, score, timeStr) {
+                                        const row = document.getElementById(`pp-stage-${name}`);
+                                        if (!row) return;
+                                        row.className = `pp-stage ${status}`;
+                                        const icon = row.querySelector('.pp-icon');
+                                        const spinner = row.querySelector('.pp-spinner');
+                                        if (icon) icon.textContent = status === 'running' ? '' : status === 'done' ? '✅' : status === 'failed' ? '❌' : '⏳';
+                                        if (status === 'running') {
+                                            // replace icon with spinner
+                                            if (icon) { icon.outerHTML = `<span class="pp-spinner"></span>`; }
+                                        }
+                                        const timeEl = document.getElementById(`pp-time-${name}`);
+                                        if (timeEl && timeStr) timeEl.textContent = timeStr;
+                                        const scoreEl = document.getElementById(`pp-score-${name}`);
+                                        if (scoreEl && score !== undefined && score !== null) {
+                                            const cls = score >= 60 ? 'high' : score >= 35 ? 'mid' : 'low';
+                                            scoreEl.className = `pp-score ${cls}`;
+                                            scoreEl.textContent = `${score}%`;
+                                        }
+                                        if (status === 'done' || status === 'failed') {
+                                            doneCount++;
+                                            ppBar.style.width = `${Math.min(100, Math.round(doneCount / TOTAL_STEPS * 100))}%`;
+                                        }
+                                    }
+
+                                    // Elapsed timer
+                                    const pipelineStartMs = Date.now();
+                                    const elapsedTimer = setInterval(() => {
+                                        const s = Math.round((Date.now() - pipelineStartMs) / 1000);
+                                        const m = Math.floor(s / 60), rem = s % 60;
+                                        ppElapsed.textContent = m > 0 ? `${m}m ${rem}s` : `${s}s`;
+                                    }, 1000);
+
+                                    // Live result for chart
                                     const liveResult = {
                                         resume_name: resume.name,
                                         job_title:   job.title,
@@ -1440,9 +1874,15 @@
                                     };
                                     renderResultChart(liveResult);
 
+                                    const skillsPrefix = job.skills_required
+                                        ? `Required Skills: ${job.skills_required}\n\n`
+                                        : '';
+                                    const descTruncated = job.description.length > 9000
+                                        ? job.description.slice(0, 9000).replace(/\s+\S*$/, '')
+                                        : job.description;
                                     const payload = {
                                         resume_text: resume.text,
-                                        job_description: job.description + " \nRequired Skills: " + job.skills_required,
+                                        job_description: skillsPrefix + descTruncated,
                                         use_coach: useCoach,
                                         llm_models: [model],
                                         api_key, api_base_url,
@@ -1450,7 +1890,6 @@
                                         job_title: job.title || '',
                                     };
 
-                                    // Stream SSE events, updating chart as each judge finishes
                                     const resp = await fetch('/analyze/stream', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
@@ -1473,28 +1912,49 @@
                                             let ev;
                                             try { ev = JSON.parse(line.slice(6)); } catch { continue; }
 
-                                            if (ev.event === 'judge') {
+                                            if (ev.event === 'ats') {
+                                                _markStage('ats', 'done', ev.data?.grade ? null : null, `${ev.elapsed_s ?? ''}s`);
+                                                const atsGrade = ev.data?.grade;
+                                                const scoreEl = document.getElementById('pp-score-ats');
+                                                if (scoreEl && atsGrade) { scoreEl.textContent = atsGrade; scoreEl.className = 'pp-score ' + (atsGrade==='A'||atsGrade==='B'?'high':atsGrade==='C'?'mid':'low'); }
+                                            } else if (ev.event === 'judge_start') {
+                                                _markStage(ev.judge, 'running', null, '…');
+                                            } else if (ev.event === 'judge') {
                                                 const key = JUDGE_METRIC_MAP[ev.judge];
                                                 if (key) liveResult.metrics[key] = ev.score;
                                                 renderResultChart(liveResult);
+                                                _markStage(ev.judge, ev.success ? 'done' : 'failed', ev.score, ev.elapsed_s ? `${ev.elapsed_s}s` : null);
                                             } else if (ev.event === 'coach_start') {
-                                                document.getElementById('chart-card-title').textContent =
-                                                    document.getElementById('chart-card-title').textContent + ' ⏳ Coach…';
+                                                _markStage('coach', 'running', null, '…');
+                                                document.getElementById('chart-card-title').textContent = '📊 Score Breakdown';
+                                            } else if (ev.event === 'tick') {
+                                                // heartbeat — elapsed already handled by timer
                                             } else if (ev.event === 'complete') {
+                                                clearInterval(elapsedTimer);
+                                                _markStage('coach', 'done', null, ev.total_elapsed_s ? `${ev.total_elapsed_s}s` : null);
+                                                ppBar.style.width = '100%';
+                                                const totalS = ev.total_elapsed_s;
+                                                const totalM = totalS ? Math.floor(totalS/60) : null;
+                                                ppElapsed.textContent = totalM > 0 ? `${totalM}m ${Math.round(totalS%60)}s total` : totalS ? `${totalS}s total` : 'done';
                                                 result = ev;
                                                 result.resume_name  = resume.name;
                                                 result.job_title    = job.title;
                                                 result.job_company  = job.company;
                                                 renderResultChart(result);
                                             } else if (ev.event === 'error') {
+                                                clearInterval(elapsedTimer);
                                                 throw new Error(ev.detail || 'Stream error');
                                             }
                                         }
                                     }
 
+                                    clearInterval(elapsedTimer);
                                     if (!result) throw new Error('No complete event received');
 
                                     currentResults.push(result);
+                                    const atsInitial = atsResultsByResumeId[resumeId]
+                                        ? _renderAtsGradeBadge(atsResultsByResumeId[resumeId], resume.text)
+                                        : '<span style="color:var(--text3);font-size:12px;">…</span>';
                                     const row = document.createElement('tr');
                                     row.innerHTML = `
                                         <td>${escapeHtml(resume.name)}</td>
@@ -1503,11 +1963,15 @@
                                         <td><strong>${result.match_score}%</strong></td>
                                         <td>${result.metrics.skills_coverage}%</td>
                                         <td>${result.metrics.experience_depth}%</td>
+                                        <td data-ats-rid="${resumeId}">${atsInitial}</td>
                                         <td><button class="btn btn-sm" onclick="viewResultDetail(${currentResults.length - 1})">View</button></td>
                                     `;
                                     tbody.appendChild(row);
                                 } else {
                                     const score = Math.floor(Math.random() * 40) + 60;
+                                    const atsInitial = atsResultsByResumeId[resumeId]
+                                        ? _renderAtsGradeBadge(atsResultsByResumeId[resumeId], resume.text)
+                                        : '<span style="color:var(--text3);font-size:12px;">…</span>';
                                     const row = document.createElement('tr');
                                     row.innerHTML = `
                                         <td>${escapeHtml(resume.name)}</td>
@@ -1515,6 +1979,7 @@
                                         <td>${escapeHtml(job.company)}</td>
                                         <td><strong>${score}%</strong></td>
                                         <td>-</td><td>-</td>
+                                        <td data-ats-rid="${resumeId}">${atsInitial}</td>
                                         <td><button class="btn btn-sm" disabled>No LLM</button></td>
                                     `;
                                     tbody.appendChild(row);
@@ -1526,7 +1991,7 @@
                                     <td>${escapeHtml(resume.name)}</td>
                                     <td>${escapeHtml(job.title)}</td>
                                     <td>${escapeHtml(job.company)}</td>
-                                    <td colspan="4" style="color: var(--red);">Error: ${escapeHtml(error.message)}</td>
+                                    <td colspan="5" style="color: var(--red);">Error: ${escapeHtml(error.message)}</td>
                                 `;
                                 tbody.appendChild(row);
                             }
@@ -1539,6 +2004,7 @@
                     
                 } catch (error) {
                     document.getElementById('batch-status').textContent = `Error: ${escapeHtml(error.message)}`;
+                    document.getElementById('pipeline-progress').style.display = 'none';
                 } finally {
                     btn.disabled = false;
                     btn.textContent = 'Run Analysis';
@@ -1550,7 +2016,8 @@
         const VIEW_TITLES = {
             health: 'System Health', resumes: 'Resumes', jobs: 'Jobs',
             analyzer: 'Analyzer', results: 'Results',
-            'ats-checker': 'ATS Checker', 'career-paths': 'Career Paths'
+            'ats-checker': 'ATS Checker', 'career-paths': 'Career Paths',
+            benchmark: 'Model Benchmark'
         };
         function showView(viewName) {
             document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
@@ -1559,6 +2026,7 @@
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = VIEW_TITLES[viewName] || viewName;
             if (viewName === 'analyzer') populateAnalyzerDropdowns();
+            if (viewName === 'benchmark') populateFullBenchmarkDropdowns();
         }
 
         // API helper
@@ -1602,7 +2070,7 @@
             if (el) el.style.display = 'block';
             ['manual','url','bulk','paste'].forEach(m => {
                 const btn = document.getElementById(`tab-${m}`);
-                if (btn) btn.className = m === mode ? 'btn btn-sm' : 'btn btn-sm btn-secondary';
+                if (btn) btn.classList.toggle('active', m === mode);
             });
         }
 
@@ -1638,13 +2106,23 @@
             const url    = document.getElementById('job-url-input').value.trim();
             const status = document.getElementById('job-url-status');
             if (!url) { status.textContent = 'Enter a URL first'; return; }
-            status.textContent = '⏳ Fetching…';
+
+            const URL_STAGES = ['Connecting to page…', 'Rendering JavaScript…', 'Extracting job content…', 'Parsing fields…'];
+            let _urlStage = 0;
+            status.innerHTML = `<span class="spinner" style="display:inline-block;vertical-align:middle;margin-right:6px"></span><span id="url-stage-text">${URL_STAGES[0]}</span>`;
+            const urlTimers = URL_STAGES.slice(1).map((s, i) =>
+                setTimeout(() => {
+                    const el = document.getElementById('url-stage-text');
+                    if (el) el.textContent = s;
+                }, (i + 1) * 4000)
+            );
             try {
                 const resp = await fetch('/fetch-job-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url }),
                 });
+                urlTimers.forEach(clearTimeout);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const d = await resp.json();
                 if (!d.job_description) throw new Error('No JD extracted from this URL');
@@ -1652,9 +2130,13 @@
                 document.getElementById('url-title').value       = d.title               || '';
                 document.getElementById('url-exp').value         = d.experience_required || '';
                 document.getElementById('url-skills').value      = d.skills_required     || '';
-                document.getElementById('url-description').value = d.job_description;
-                status.textContent = `✅ Fetched (${d.job_description.length} chars) — review and save`;
-            } catch (e) { status.textContent = `❌ ${e.message}`; }
+                const cleanJD = d.job_description
+                    .replace(/&amp;#xa0;|&#xa0;|&nbsp;/gi, ' ')
+                    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                    .replace(/[ \t]{2,}/g, ' ').trim();
+                document.getElementById('url-description').value = cleanJD;
+                status.textContent = `✅ Fetched (${cleanJD.length} chars) — review and save`;
+            } catch (e) { urlTimers.forEach(clearTimeout); status.textContent = `❌ ${e.message}`; }
         }
 
         async function saveURLFetchedJob() {
@@ -1670,7 +2152,7 @@
                         experience_required: document.getElementById('url-exp').value,
                         skills_required:     document.getElementById('url-skills').value,
                         description:         document.getElementById('url-description').value,
-                        source_url:          document.getElementById('url-input').value.trim(),
+                        source_url:          document.getElementById('job-url-input').value.trim(),
                     })
                 });
                 status.textContent = res.success ? `✅ Saved (ID: ${res.id})` : '❌ Save failed';
@@ -1816,14 +2298,729 @@
             } catch(err) { status.textContent = '❌ ' + err.message; }
         }
 
+        function getApiKey() { return sessionStorage.getItem('hireable_api_key') || ''; }
+
         async function api(path, options = {}) {
             const url = path.startsWith('http') ? path : `${window.location.origin}${path}`;
+            const key = getApiKey();
+            if (key) {
+                options.headers = { ...(options.headers || {}), 'X-API-Key': key };
+            }
             const response = await fetch(url, options);
+            if (response.status === 401 || response.status === 403) {
+                clearToken();
+                showAuthOverlay();
+                throw new Error('Session expired — please log in again.');
+            }
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         }
 
+        function showApiKeyPrompt() {
+            const existing = document.getElementById('api-key-modal');
+            if (existing) { existing.style.display = 'flex'; return; }
+            const modal = document.createElement('div');
+            modal.id = 'api-key-modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+            modal.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 32px;min-width:320px;max-width:420px;">
+                <div style="font-size:15px;font-weight:600;margin-bottom:8px;">API Key Required</div>
+                <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Enter the API_KEY set on your server. Stored in sessionStorage only.</div>
+                <input id="api-key-input" type="password" placeholder="Enter API key…"
+                    style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;margin-bottom:12px;"/>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button onclick="document.getElementById('api-key-modal').style.display='none'"
+                        style="padding:7px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;">Cancel</button>
+                    <button onclick="saveApiKey()"
+                        style="padding:7px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;cursor:pointer;font-weight:600;">Save &amp; Retry</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('#api-key-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
+            setTimeout(() => modal.querySelector('#api-key-input').focus(), 50);
+        }
+
+        function saveApiKey() {
+            const val = document.getElementById('api-key-input')?.value?.trim();
+            if (val) { sessionStorage.setItem('hireable_api_key', val); }
+            document.getElementById('api-key-modal').style.display = 'none';
+            updateAuthStatusIndicator();
+            refreshAll();
+        }
+
+        function updateAuthStatusIndicator() {
+            const label     = document.getElementById('auth-status-label');
+            const sub       = document.getElementById('auth-status-sub');
+            const logoutBtn = document.getElementById('auth-logout-btn');
+            const avatar    = document.getElementById('auth-avatar-letter');
+            if (!label) return;
+            const token = getToken();
+            if (token) {
+                let email = 'Signed in';
+                try { email = JSON.parse(atob(token.split('.')[1])).email || email; } catch {}
+                label.textContent = email;
+                if (sub) sub.textContent = 'Active session';
+                if (avatar) avatar.textContent = email[0].toUpperCase();
+                if (logoutBtn) { logoutBtn.style.display = 'flex'; }
+            } else {
+                label.textContent = 'Not signed in';
+                if (sub) sub.textContent = 'Sign in to continue';
+                if (avatar) avatar.textContent = '?';
+                if (logoutBtn) { logoutBtn.style.display = 'none'; }
+            }
+        }
+
         // Refresh all data
+        // ── Model Benchmarker ─────────────────────────────────────────────────
+        function populateBenchmarkDropdowns() {
+            const resumeSels = ['ollama-bench-judge-resume', 'ollama-bench-audit-resume'];
+            resumeSels.forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                sel.innerHTML = '<option value="">— select resume —</option>';
+                Object.values(resumes).forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.resume_id;
+                    opt.textContent = r.name || `Resume ${r.resume_id}`;
+                    sel.appendChild(opt);
+                });
+            });
+            ['ollama-bench-job-select'].forEach(id => {
+                const jobSel = document.getElementById(id);
+                if (jobSel) {
+                    jobSel.innerHTML = '';
+                    Object.values(jobs).forEach(j => {
+                        const opt = document.createElement('option');
+                        opt.value = j.job_id;
+                        opt.textContent = `${j.title || '?'} @ ${j.company || '?'}`;
+                        jobSel.appendChild(opt);
+                    });
+                }
+            });
+        }
+
+        // ── Ollama Benchmarker ────────────────────────────────────────────────
+        async function runOllamaBenchmark() {
+            const btn = document.getElementById('ollama-bench-run-btn');
+            const status = document.getElementById('ollama-bench-status');
+            btn.disabled = true; btn.textContent = 'Running…';
+            status.style.display = 'block';
+            status.textContent = 'Running synthetic test on all installed Ollama models sequentially — ~2 min…';
+            document.getElementById('ollama-bench-results').innerHTML = '';
+            try {
+                const data = await fetch('/benchmark-ollama', { method: 'POST' }).then(r => r.json());
+                renderOllamaBenchmarkResults(data);
+                status.style.display = 'none';
+            } catch (e) {
+                status.textContent = 'Error: ' + escapeHtml(e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run Synthetic';
+            }
+        }
+
+        async function runOllamaRealBenchmark() {
+            const judgeResume = document.getElementById('ollama-bench-judge-resume').value;
+            const auditResume = document.getElementById('ollama-bench-audit-resume').value;
+            const jobSel = document.getElementById('ollama-bench-job-select');
+            const jobIds = [...jobSel.selectedOptions].map(o => o.value);
+            if (!judgeResume || !auditResume) { alert('Select both resumes.'); return; }
+            if (jobIds.length === 0) { alert('Select at least one job.'); return; }
+            if (jobIds.length > 3) { alert('Select at most 3 jobs.'); return; }
+
+            const btn = document.getElementById('ollama-bench-real-btn');
+            const status = document.getElementById('ollama-bench-status');
+            btn.disabled = true; btn.textContent = 'Running…';
+            status.style.display = 'block';
+            status.textContent = `Running real benchmark on Ollama models (${jobIds.length} jobs + audit) — runs sequentially, expect 20-40 min for all 8 models…`;
+            document.getElementById('ollama-bench-results').innerHTML = '';
+            try {
+                const data = await fetch('/benchmark-ollama-real', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ judge_resume_id: judgeResume, job_ids: jobIds, audit_resume_id: auditResume }),
+                }).then(r => r.json());
+                renderOllamaRealBenchmarkResults(data);
+                status.style.display = 'none';
+            } catch (e) {
+                status.textContent = 'Error: ' + escapeHtml(e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run Real Benchmark';
+            }
+        }
+
+        function renderOllamaBenchmarkResults(data) {
+            const el = document.getElementById('ollama-bench-results');
+            if (data.success === false) {
+                el.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px;">${escapeHtml(data.error || 'Unknown error')}</div>`;
+                return;
+            }
+            const rec = data.recommended || {};
+            const vc = v => v === true ? 'var(--green)' : 'var(--red)';
+            const tick = v => v ? '✓' : '✗';
+
+            let html = '';
+            if (rec.judge || rec.audit) {
+                html += `<div style="display:flex;gap:12px;padding:12px 0 8px;flex-wrap:wrap;">`;
+                if (rec.judge) html += `<div style="padding:8px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Judge Model</span><br><strong style="color:var(--green);">${escapeHtml(rec.judge)}</strong></div>`;
+                if (rec.audit) html += `<div style="padding:8px 12px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Audit Model</span><br><strong style="color:var(--indigo,#6366f1);">${escapeHtml(rec.audit)}</strong></div>`;
+                html += `</div>`;
+            }
+
+            html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr style="color:var(--text2);text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:6px 10px;">Model</th>
+                    <th style="padding:6px 10px;text-align:center;">Judge JSON</th>
+                    <th style="padding:6px 10px;text-align:right;">Judge s</th>
+                    <th style="padding:6px 10px;text-align:center;">Audit JSON</th>
+                    <th style="padding:6px 10px;text-align:right;">Audit s</th>
+                    <th style="padding:6px 10px;text-align:right;">Avg s</th>
+                </tr></thead><tbody>`;
+
+            for (const r of (data.results || [])) {
+                const highlight = (r.model === rec.judge || r.model === rec.audit) ? 'background:var(--surface2);' : '';
+                html += `<tr style="border-bottom:1px solid var(--border);${highlight}">
+                    <td style="padding:6px 10px;font-family:var(--font-mono);font-size:11px;">${escapeHtml(r.model)}</td>
+                    <td style="padding:6px 10px;text-align:center;color:${vc(r.judge_json_valid)};font-weight:700;">${tick(r.judge_json_valid)}</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.judge_json_valid ? r.judge_latency_s.toFixed(1) : (r.judge_error ? '<span style="color:var(--text3);font-size:10px;">' + escapeHtml(r.judge_error) + '</span>' : '—')}</td>
+                    <td style="padding:6px 10px;text-align:center;color:${vc(r.audit_json_valid)};font-weight:700;">${tick(r.audit_json_valid)}</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.audit_json_valid ? r.audit_latency_s.toFixed(1) : (r.audit_error ? '<span style="color:var(--text3);font-size:10px;">' + escapeHtml(r.audit_error) + '</span>' : '—')}</td>
+                    <td style="padding:6px 10px;text-align:right;font-weight:600;">${r.avg_latency_s.toFixed(1)}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div>';
+            el.innerHTML = html;
+            document.getElementById('ollama-bench-last-run').textContent = 'Last run: ' + (data.timestamp || '');
+        }
+
+        function renderOllamaRealBenchmarkResults(data) {
+            const el = document.getElementById('ollama-bench-results');
+            if (!data || data.success === false) {
+                el.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px;">${escapeHtml(data?.error || 'Unknown error')}</div>`;
+                return;
+            }
+            const rec = data.recommended || {};
+            const vc = v => v ? 'var(--green)' : 'var(--red)';
+            const tick = v => v ? '✓' : '✗';
+            const jobs = data.jobs_tested || [];
+
+            let html = '';
+            if (data.judge_resume) html += `<div style="padding:10px 0 4px;font-size:11px;color:var(--text2);">Judge: <strong>${escapeHtml(data.judge_resume)}</strong> | Audit: <strong>${escapeHtml(data.audit_resume)}</strong> | Jobs: ${jobs.map(j => escapeHtml(j)).join(', ')}</div>`;
+
+            if (rec.judge || rec.audit) {
+                html += `<div style="display:flex;gap:12px;padding:8px 0;flex-wrap:wrap;">`;
+                if (rec.judge) html += `<div style="padding:8px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Judge</span><br><strong style="color:var(--green);font-family:var(--font-mono);font-size:11px;">${escapeHtml(rec.judge)}</strong></div>`;
+                if (rec.audit) html += `<div style="padding:8px 12px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Audit</span><br><strong style="color:var(--indigo,#6366f1);font-family:var(--font-mono);font-size:11px;">${escapeHtml(rec.audit)}</strong></div>`;
+                html += `</div>`;
+            }
+
+            const jobCols = jobs.map((j, i) => `<th style="padding:6px 8px;text-align:right;white-space:nowrap;">Score J${i+1}</th>`).join('');
+            html += `<div style="overflow-x:auto;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="color:var(--text2);text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:6px 10px;">Model</th>
+                    ${jobCols}
+                    <th style="padding:6px 8px;text-align:right;">Avg Score</th>
+                    <th style="padding:6px 8px;text-align:right;">Judge s</th>
+                    <th style="padding:6px 8px;text-align:center;">Audit ✓</th>
+                    <th style="padding:6px 8px;text-align:right;">Audit s</th>
+                </tr></thead><tbody>`;
+
+            for (const r of (data.results || [])) {
+                const highlight = (r.model === rec.judge || r.model === rec.audit) ? 'background:var(--surface2);' : '';
+                const jobScoreCells = jobs.map((_, i) => {
+                    const jr = r.job_results?.[i];
+                    if (!jr) return `<td style="padding:6px 8px;text-align:right;color:var(--text3);">—</td>`;
+                    if (!jr.json_valid) return `<td style="padding:6px 8px;text-align:right;color:var(--red);font-size:10px;">${escapeHtml(jr.error || '✗')}</td>`;
+                    return `<td style="padding:6px 8px;text-align:right;font-weight:600;">${jr.score != null ? Math.round(jr.score * 100) : '?'}%</td>`;
+                }).join('');
+                html += `<tr style="border-bottom:1px solid var(--border);${highlight}">
+                    <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.model)}">${escapeHtml(r.model)}</td>
+                    ${jobScoreCells}
+                    <td style="padding:6px 8px;text-align:right;font-weight:700;">${r.score_avg != null ? Math.round(r.score_avg * 100) + '%' : '—'}</td>
+                    <td style="padding:6px 8px;text-align:right;">${r.judge_all_valid ? r.judge_avg_latency_s.toFixed(1) : '<span style="color:var(--text3);">err</span>'}</td>
+                    <td style="padding:6px 8px;text-align:center;color:${vc(r.audit_json_valid)};font-weight:700;">${tick(r.audit_json_valid)}</td>
+                    <td style="padding:6px 8px;text-align:right;">${r.audit_json_valid ? r.audit_latency_s.toFixed(1) : (r.audit_error ? '<span style="color:var(--text3);font-size:10px;">' + escapeHtml(r.audit_error) + '</span>' : '—')}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div>';
+            el.innerHTML = html;
+            document.getElementById('ollama-bench-last-run').textContent = 'Last run: ' + (data.timestamp || '');
+        }
+
+        async function runRealBenchmark() {
+            const judgeResume = document.getElementById('bench-judge-resume').value;
+            const auditResume = document.getElementById('bench-audit-resume').value;
+            const jobSel = document.getElementById('bench-job-select');
+            const jobIds = [...jobSel.selectedOptions].map(o => o.value);
+            if (!judgeResume || !auditResume) { alert('Select both resumes.'); return; }
+            if (jobIds.length === 0) { alert('Select at least one job.'); return; }
+            if (jobIds.length > 3) { alert('Select at most 3 jobs.'); return; }
+
+            const btn = document.getElementById('bench-real-btn');
+            const status = document.getElementById('bench-status');
+            btn.disabled = true; btn.textContent = 'Running…';
+            status.style.display = 'block';
+            status.textContent = `Running real benchmark against synthetic-passing models only (${jobIds.length} jobs + audit) — up to 3 min…`;
+            document.getElementById('bench-results').innerHTML = '';
+            try {
+                const data = await fetch('/benchmark-real', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ judge_resume_id: judgeResume, job_ids: jobIds, audit_resume_id: auditResume }),
+                }).then(r => r.json());
+                renderRealBenchmarkResults(data);
+                status.style.display = 'none';
+            } catch (e) {
+                status.textContent = 'Error: ' + escapeHtml(e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run Real Benchmark';
+            }
+        }
+
+        function renderRealBenchmarkResults(data) {
+            const el = document.getElementById('bench-results');
+            if (!data || data.success === false) {
+                el.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px;">${escapeHtml(data?.error || 'Unknown error')}</div>`;
+                return;
+            }
+            const rec = data.recommended || {};
+            const vc = v => v ? 'var(--green)' : 'var(--red)';
+            const tick = v => v ? '✓' : '✗';
+            const jobs = data.jobs_tested || [];
+
+            let html = '';
+            if (data.judge_resume) html += `<div style="padding:10px 0 4px;font-size:11px;color:var(--text2);">Judge resume: <strong>${escapeHtml(data.judge_resume)}</strong> | Audit resume: <strong>${escapeHtml(data.audit_resume)}</strong> | Jobs: ${jobs.map(j => escapeHtml(j)).join(', ')}</div>`;
+
+            if (rec.judge || rec.audit) {
+                html += `<div style="display:flex;gap:12px;padding:8px 0;flex-wrap:wrap;">`;
+                if (rec.judge) html += `<div style="padding:8px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Judge</span><br><strong style="color:var(--green);font-family:var(--font-mono);font-size:11px;">${escapeHtml(rec.judge)}</strong></div>`;
+                if (rec.audit) html += `<div style="padding:8px 12px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Audit</span><br><strong style="color:var(--indigo,#6366f1);font-family:var(--font-mono);font-size:11px;">${escapeHtml(rec.audit)}</strong></div>`;
+                html += `</div>`;
+            }
+
+            // Build dynamic job score columns
+            const jobCols = jobs.map((j, i) => `<th style="padding:6px 8px;text-align:right;white-space:nowrap;">Score J${i+1}</th>`).join('');
+            html += `<div style="overflow-x:auto;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="color:var(--text2);text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:6px 10px;">Model</th>
+                    ${jobCols}
+                    <th style="padding:6px 8px;text-align:right;">Avg Score</th>
+                    <th style="padding:6px 8px;text-align:right;">Judge ms</th>
+                    <th style="padding:6px 8px;text-align:center;">Audit ✓</th>
+                    <th style="padding:6px 8px;text-align:right;">Audit ms</th>
+                </tr></thead><tbody>`;
+
+            for (const r of (data.results || [])) {
+                const highlight = (r.model === rec.judge || r.model === rec.audit) ? 'background:var(--surface2);' : '';
+                const jobScoreCells = jobs.map((_, i) => {
+                    const jr = r.job_results?.[i];
+                    if (!jr) return `<td style="padding:6px 8px;text-align:right;color:var(--text3);">—</td>`;
+                    if (!jr.json_valid) return `<td style="padding:6px 8px;text-align:right;color:var(--red);font-size:10px;">${escapeHtml(jr.error || '✗')}</td>`;
+                    return `<td style="padding:6px 8px;text-align:right;font-weight:600;">${jr.score != null ? Math.round(jr.score * 100) : '?'}%</td>`;
+                }).join('');
+                html += `<tr style="border-bottom:1px solid var(--border);${highlight}">
+                    <td style="padding:6px 10px;font-family:var(--font-mono);font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.model)}">${escapeHtml(r.model)}</td>
+                    ${jobScoreCells}
+                    <td style="padding:6px 8px;text-align:right;font-weight:700;">${r.score_avg != null ? Math.round(r.score_avg * 100) + '%' : '—'}</td>
+                    <td style="padding:6px 8px;text-align:right;">${r.judge_all_valid ? Math.round(r.judge_avg_latency_s * 1000) : '<span style="color:var(--text3);">err</span>'}</td>
+                    <td style="padding:6px 8px;text-align:center;color:${vc(r.audit_json_valid)};font-weight:700;">${tick(r.audit_json_valid)}</td>
+                    <td style="padding:6px 8px;text-align:right;">${r.audit_json_valid ? Math.round(r.audit_latency_s * 1000) : (r.audit_error ? '<span style="color:var(--text3);font-size:10px;">' + escapeHtml(r.audit_error) + '</span>' : '—')}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div>';
+            el.innerHTML = html;
+            document.getElementById('bench-last-run').textContent = 'Last run: ' + (data.timestamp || '');
+        }
+
+        async function runBenchmark() {
+            const btn = document.getElementById('bench-run-btn');
+            const status = document.getElementById('bench-status');
+            btn.disabled = true; btn.textContent = 'Running…';
+            status.style.display = 'block';
+            status.textContent = 'Firing all models in parallel — this takes 30–60 seconds…';
+            document.getElementById('bench-results').innerHTML = '';
+            try {
+                const data = await fetch('/benchmark-models', { method: 'POST' }).then(r => r.json());
+                renderBenchmarkResults(data);
+                status.style.display = 'none';
+            } catch (e) {
+                status.textContent = 'Error: ' + escapeHtml(e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run Benchmark';
+            }
+        }
+
+        async function loadBenchmarkResults() {
+            try {
+                const data = await fetch('/benchmark-results').then(r => r.json());
+                if (data.success === false) return;
+                renderBenchmarkResults(data);
+            } catch {}
+        }
+
+        function renderBenchmarkResults(data) {
+            const el = document.getElementById('bench-results');
+            const lastRun = document.getElementById('bench-last-run');
+            if (data.timestamp) lastRun.textContent = 'Last run: ' + data.timestamp;
+
+            const rec = data.recommended || {};
+            const vc = v => v === true ? 'var(--green)' : 'var(--red)';
+            const tick = v => v ? '✓' : '✗';
+
+            let html = '';
+
+            // Recommended banner
+            if (rec.judge || rec.audit) {
+                html += `<div style="display:flex;gap:12px;padding:12px 0 8px;flex-wrap:wrap;">`;
+                if (rec.judge) html += `<div style="padding:8px 12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Judge Model</span><br><strong style="color:var(--green);">${escapeHtml(rec.judge)}</strong></div>`;
+                if (rec.audit) html += `<div style="padding:8px 12px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);border-radius:var(--radius-sm);font-size:12px;"><span style="color:var(--text2);">Best Audit Model</span><br><strong style="color:var(--indigo,#6366f1);">${escapeHtml(rec.audit)}</strong></div>`;
+                html += `</div>`;
+            }
+
+            // Results table
+            html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr style="color:var(--text2);text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:6px 10px;">Model</th>
+                    <th style="padding:6px 10px;text-align:center;">Judge JSON</th>
+                    <th style="padding:6px 10px;text-align:right;">Judge ms</th>
+                    <th style="padding:6px 10px;text-align:center;">Audit JSON</th>
+                    <th style="padding:6px 10px;text-align:right;">Audit ms</th>
+                    <th style="padding:6px 10px;text-align:right;">Avg ms</th>
+                </tr></thead><tbody>`;
+
+            for (const r of (data.results || [])) {
+                const highlight = (r.model === rec.judge || r.model === rec.audit)
+                    ? 'background:var(--surface2);' : '';
+                html += `<tr style="border-bottom:1px solid var(--border);${highlight}">
+                    <td style="padding:6px 10px;font-family:var(--font-mono);font-size:11px;">${escapeHtml(r.model)}</td>
+                    <td style="padding:6px 10px;text-align:center;color:${vc(r.judge_json_valid)};font-weight:700;">${tick(r.judge_json_valid)}</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.judge_json_valid ? Math.round(r.judge_latency_s * 1000) : (r.judge_error ? '<span style="color:var(--text3);">' + escapeHtml(r.judge_error) + '</span>' : '—')}</td>
+                    <td style="padding:6px 10px;text-align:center;color:${vc(r.audit_json_valid)};font-weight:700;">${tick(r.audit_json_valid)}</td>
+                    <td style="padding:6px 10px;text-align:right;">${r.audit_json_valid ? Math.round(r.audit_latency_s * 1000) : (r.audit_error ? '<span style="color:var(--text3);">' + escapeHtml(r.audit_error) + '</span>' : '—')}</td>
+                    <td style="padding:6px 10px;text-align:right;font-weight:600;">${Math.round(r.avg_latency_s * 1000)}</td>
+                </tr>`;
+            }
+            html += '</tbody></table></div>';
+            el.innerHTML = html;
+        }
+
+        // ── Full Benchmark Tab ────────────────────────────────────────────────
+        const JUDGE_LABELS = { skills: 'Skills', experience: 'Experience', seniority: 'Seniority', relevancy: 'Relevancy', impact: 'Impact' };
+        const JUDGE_COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#3b82f6'];
+        const _fbCharts = {};
+
+        function populateFullBenchmarkDropdowns() {
+            ['fb-judge-resume','fb-audit-resume'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                sel.innerHTML = '<option value="">— select —</option>';
+                Object.values(resumes).forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.resume_id;
+                    opt.textContent = r.name || `Resume ${r.resume_id}`;
+                    sel.appendChild(opt);
+                });
+            });
+            const jobSel = document.getElementById('fb-job-select');
+            if (jobSel) {
+                jobSel.innerHTML = '';
+                Object.values(jobs).forEach(j => {
+                    const opt = document.createElement('option');
+                    opt.value = j.job_id;
+                    opt.textContent = `${j.title||'?'} @ ${j.company||'?'}`;
+                    jobSel.appendChild(opt);
+                });
+            }
+        }
+
+        async function runFullBenchmark() {
+            const judgeResume = document.getElementById('fb-judge-resume').value;
+            const auditResume = document.getElementById('fb-audit-resume').value;
+            const jobSel = document.getElementById('fb-job-select');
+            const jobIds = [...jobSel.selectedOptions].map(o => o.value);
+            if (!judgeResume || !auditResume) { alert('Select both resumes.'); return; }
+            if (!jobIds.length) { alert('Select at least one job.'); return; }
+            if (jobIds.length > 3) { alert('Select at most 3 jobs.'); return; }
+
+            const btn = document.getElementById('fb-run-btn');
+            const status = document.getElementById('fb-status');
+            btn.disabled = true; btn.textContent = 'Running…';
+            status.style.display = 'block';
+            status.textContent = 'Running full benchmark — all 5 judges × all models × all JDs sequentially. Expect 30–60 min…';
+            document.getElementById('fb-charts').style.display = 'none';
+            try {
+                const data = await fetch('/benchmark-ollama-full', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({judge_resume_id: judgeResume, job_ids: jobIds, audit_resume_id: auditResume}),
+                }).then(r => r.json());
+                renderFullBenchmarkResults(data);
+                status.style.display = 'none';
+            } catch(e) {
+                status.textContent = 'Error: ' + escapeHtml(e.message);
+            } finally {
+                btn.disabled = false; btn.textContent = 'Run Full Benchmark';
+            }
+        }
+
+        function _destroyChart(id) {
+            if (_fbCharts[id]) { _fbCharts[id].destroy(); delete _fbCharts[id]; }
+        }
+
+        function renderFullBenchmarkResults(data) {
+            if (!data || data.success === false) return;
+            const results = data.results || [];
+            if (!results.length) return;
+
+            document.getElementById('fb-charts').style.display = 'block';
+            document.getElementById('fb-last-run').textContent = 'Last run: ' + (data.timestamp || '');
+
+            const models = results.map(r => r.model.split('/').pop());  // short names
+            const judgeKeys = ['skills','experience','seniority','relevancy','impact'];
+
+            // ── Chart 1: Judge Pass Rate (grouped bar) ──
+            _destroyChart('pass-rate');
+            _fbCharts['pass-rate'] = new Chart(document.getElementById('chart-pass-rate'), {
+                type: 'bar',
+                data: {
+                    labels: models,
+                    datasets: judgeKeys.map((j, i) => ({
+                        label: JUDGE_LABELS[j],
+                        data: results.map(r => r.per_judge[j]?.pass_rate ?? 0),
+                        backgroundColor: JUDGE_COLORS[i] + 'cc',
+                        borderColor: JUDGE_COLORS[i],
+                        borderWidth: 1,
+                    })),
+                },
+                options: {
+                    responsive: true, plugins: {legend:{position:'bottom',labels:{font:{size:10}}}},
+                    scales: {
+                        x: {ticks:{font:{size:9}}},
+                        y: {min:0, max:100, title:{display:true,text:'Pass Rate %',font:{size:10}}},
+                    },
+                },
+            });
+
+            // ── Chart 2: Latency Heatmap (HTML table) ──
+            const allJudges = [...judgeKeys, 'audit'];
+            const latMax = Math.max(...results.flatMap(r =>
+                allJudges.map(j => j === 'audit' ? (r.audit?.latency_s || 0) : (r.per_judge[j]?.avg_latency_s || 0))
+            )) || 1;
+            const heatColor = v => {
+                const norm = Math.min(v / latMax, 1);
+                const r2 = Math.round(norm * 220);
+                const g2 = Math.round((1 - norm) * 160 + 40);
+                return `rgb(${r2},${g2},60)`;
+            };
+            let htm = `<table style="border-collapse:collapse;width:100%;">
+                <thead><tr><th style="padding:4px 8px;text-align:left;font-size:10px;color:var(--text2);">Model</th>`;
+            allJudges.forEach(j => htm += `<th style="padding:4px 6px;text-align:center;font-size:10px;color:var(--text2);">${j.charAt(0).toUpperCase()+j.slice(1)}</th>`);
+            htm += '</tr></thead><tbody>';
+            results.forEach(r => {
+                htm += `<tr><td style="padding:4px 8px;font-size:10px;font-family:var(--font-mono);white-space:nowrap;">${escapeHtml(r.model.split('/').pop())}</td>`;
+                allJudges.forEach(j => {
+                    const v = j === 'audit' ? (r.audit?.latency_s || 0) : (r.per_judge[j]?.avg_latency_s || 0);
+                    htm += `<td style="padding:4px 6px;text-align:center;font-size:10px;background:${heatColor(v)};color:#fff;border-radius:3px;">${v.toFixed(1)}s</td>`;
+                });
+                htm += '</tr>';
+            });
+            htm += '</tbody></table>';
+            document.getElementById('chart-latency-heatmap').innerHTML = htm;
+
+            // ── Chart 3: Confidence ──
+            _destroyChart('confidence');
+            _fbCharts['confidence'] = new Chart(document.getElementById('chart-confidence'), {
+                type: 'bar',
+                data: {
+                    labels: models,
+                    datasets: judgeKeys.map((j, i) => ({
+                        label: JUDGE_LABELS[j],
+                        data: results.map(r => r.per_judge[j]?.avg_confidence ?? 0),
+                        backgroundColor: JUDGE_COLORS[i] + 'cc',
+                        borderColor: JUDGE_COLORS[i], borderWidth: 1,
+                    })),
+                },
+                options: {
+                    responsive: true, plugins: {legend:{position:'bottom',labels:{font:{size:9}}}},
+                    scales: {x:{ticks:{font:{size:9}}}, y:{min:0,max:100,title:{display:true,text:'Avg Confidence',font:{size:9}}}},
+                },
+            });
+
+            // ── Chart 4: First Attempt ──
+            _destroyChart('first-attempt');
+            _fbCharts['first-attempt'] = new Chart(document.getElementById('chart-first-attempt'), {
+                type: 'bar',
+                data: {
+                    labels: models,
+                    datasets: judgeKeys.map((j, i) => ({
+                        label: JUDGE_LABELS[j],
+                        data: results.map(r => r.per_judge[j]?.first_attempt_rate ?? 0),
+                        backgroundColor: JUDGE_COLORS[i] + 'cc',
+                        borderColor: JUDGE_COLORS[i], borderWidth: 1,
+                    })),
+                },
+                options: {
+                    responsive: true, plugins: {legend:{position:'bottom',labels:{font:{size:9}}}},
+                    scales: {x:{ticks:{font:{size:9}}}, y:{min:0,max:100,title:{display:true,text:'1st Attempt %',font:{size:9}}}},
+                },
+            });
+
+            // ── Chart 5: Score Variance ──
+            _destroyChart('variance');
+            _fbCharts['variance'] = new Chart(document.getElementById('chart-variance'), {
+                type: 'bar',
+                data: {
+                    labels: models,
+                    datasets: judgeKeys.map((j, i) => ({
+                        label: JUDGE_LABELS[j],
+                        data: results.map(r => r.per_judge[j]?.score_variance ?? 0),
+                        backgroundColor: JUDGE_COLORS[i] + 'cc',
+                        borderColor: JUDGE_COLORS[i], borderWidth: 1,
+                    })),
+                },
+                options: {
+                    responsive: true, plugins: {legend:{position:'bottom',labels:{font:{size:9}}}},
+                    scales: {x:{ticks:{font:{size:9}}}, y:{min:0,title:{display:true,text:'Std Dev',font:{size:9}}}},
+                },
+            });
+
+            // ── Chart 6: Audit Completeness ──
+            _destroyChart('audit');
+            _fbCharts['audit'] = new Chart(document.getElementById('chart-audit'), {
+                type: 'bar',
+                data: {
+                    labels: models,
+                    datasets: [{
+                        label: 'Audit Pass',
+                        data: results.map(r => r.audit?.parse_success ? 100 : 0),
+                        backgroundColor: results.map(r => r.audit?.parse_success ? '#22c55ecc' : '#ef4444cc'),
+                        borderColor: results.map(r => r.audit?.parse_success ? '#22c55e' : '#ef4444'),
+                        borderWidth: 1,
+                    }],
+                },
+                options: {
+                    responsive: true, plugins: {legend:{display:false}},
+                    scales: {x:{ticks:{font:{size:9}}}, y:{min:0,max:100,title:{display:true,text:'Pass %',font:{size:9}}}},
+                },
+            });
+
+            // ── Chart 7: Overall Composite ──
+            _destroyChart('composite');
+            const sortedByComposite = [...results].sort((a,b) => b.composite - a.composite);
+            _fbCharts['composite'] = new Chart(document.getElementById('chart-composite'), {
+                type: 'bar',
+                data: {
+                    labels: sortedByComposite.map(r => r.model.split('/').pop()),
+                    datasets: [{
+                        label: 'Composite Score',
+                        data: sortedByComposite.map(r => r.composite),
+                        backgroundColor: sortedByComposite.map((_, i) => i === 0 ? '#22c55ecc' : '#6366f1cc'),
+                        borderColor: sortedByComposite.map((_, i) => i === 0 ? '#22c55e' : '#6366f1'),
+                        borderWidth: 1,
+                    }],
+                },
+                options: {
+                    indexAxis: 'y', responsive: true,
+                    plugins: {legend:{display:false}},
+                    scales: {x:{min:0,max:100,title:{display:true,text:'Composite (0–100)',font:{size:9}}}, y:{ticks:{font:{size:9}}}},
+                },
+            });
+
+            // ── Per-model Radar ──
+            const radarsEl = document.getElementById('chart-radars');
+            radarsEl.innerHTML = '';
+            Object.keys(_fbCharts).filter(k => k.startsWith('radar-')).forEach(k => { _fbCharts[k].destroy(); delete _fbCharts[k]; });
+
+            const radarLabels = ['Skills', 'Experience', 'Seniority', 'Relevancy', 'Impact', 'Audit', 'Speed'];
+            results.forEach(r => {
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'width:220px;text-align:center;';
+                const title = document.createElement('div');
+                title.style.cssText = 'font-size:10px;font-weight:600;margin-bottom:6px;color:var(--text2);';
+                title.textContent = r.model.split('/').pop();
+                const canvas = document.createElement('canvas');
+                canvas.style.cssText = 'width:200px;height:200px;';
+                wrapper.appendChild(title);
+                wrapper.appendChild(canvas);
+                radarsEl.appendChild(wrapper);
+
+                const radarData = [
+                    r.per_judge.skills?.pass_rate ?? 0,
+                    r.per_judge.experience?.pass_rate ?? 0,
+                    r.per_judge.seniority?.pass_rate ?? 0,
+                    r.per_judge.relevancy?.pass_rate ?? 0,
+                    r.per_judge.impact?.pass_rate ?? 0,
+                    r.audit?.parse_success ? 100 : 0,
+                    r.avg_speed_score ?? 0,
+                ];
+                const key = 'radar-' + r.model.replace(/[^a-z0-9]/gi, '_');
+                _fbCharts[key] = new Chart(canvas, {
+                    type: 'radar',
+                    data: {
+                        labels: radarLabels,
+                        datasets: [{
+                            label: r.model.split('/').pop(),
+                            data: radarData,
+                            backgroundColor: 'rgba(99,102,241,0.2)',
+                            borderColor: '#6366f1',
+                            pointBackgroundColor: '#6366f1',
+                            borderWidth: 2,
+                        }],
+                    },
+                    options: {
+                        responsive: false,
+                        scales: {r: {min:0, max:100, ticks:{font:{size:8},stepSize:25}, pointLabels:{font:{size:9}}}},
+                        plugins: {legend:{display:false}},
+                    },
+                });
+            });
+
+            // ── Recommended banner ──
+            const recEl = document.getElementById('fb-recommended');
+            {
+                // Derive recommendations from results
+                const perfect = sortedByComposite.filter(r => r.avg_pass_rate === 100);
+                const qualityJudge  = [...perfect].sort((a,b) => b.avg_confidence - a.avg_confidence)[0];
+                const speedJudge    = [...perfect].filter(r => r.avg_confidence >= 75).sort((a,b) => a.avg_latency_s - b.avg_latency_s)[0];
+                const auditModel    = [...sortedByComposite]
+                    .filter(r => r.audit?.parse_success)
+                    .sort((a,b) => a.audit.latency_s - b.audit.latency_s)[0];
+                const defaultModel  = 'cogito:14b';
+                const defaultRank   = sortedByComposite.findIndex(r => r.model === defaultModel) + 1;
+                const defaultResult = sortedByComposite.find(r => r.model === defaultModel);
+
+                const card = (label, model, detail, color) =>
+                    `<div style="flex:1;min-width:180px;padding:12px 16px;background:rgba(${color},.08);border:1px solid rgba(${color},.25);border-radius:var(--radius-sm);">
+                        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(${color},1);margin-bottom:4px;">${label}</div>
+                        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px;">${escapeHtml(model)}</div>
+                        <div style="font-size:11px;color:var(--text2);">${detail}</div>
+                    </div>`;
+
+                let html = `<div style="margin-bottom:8px;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--text2);text-transform:uppercase;">Recommendations</div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">`;
+
+                if (qualityJudge) html += card('Best Quality Judge', qualityJudge.model,
+                    `${qualityJudge.avg_confidence.toFixed(0)}% avg confidence · ${qualityJudge.avg_latency_s.toFixed(1)}s`,
+                    '139,92,246');
+                if (speedJudge && speedJudge.model !== qualityJudge?.model) html += card('Best Speed/Quality', speedJudge.model,
+                    `${speedJudge.avg_latency_s.toFixed(1)}s · ${speedJudge.avg_confidence.toFixed(0)}% confidence`,
+                    '34,197,94');
+                if (auditModel) html += card('Best for ATS Audit', auditModel.model,
+                    `Audit in ${auditModel.audit.latency_s.toFixed(1)}s · parse ✓`,
+                    '59,130,246');
+
+                html += `</div>`;
+
+                if (defaultResult && defaultRank > 1) {
+                    const passWarn = defaultResult.avg_pass_rate < 100
+                        ? ` · ${defaultResult.avg_pass_rate.toFixed(0)}% pass rate` : '';
+                    html += `<div style="padding:8px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-sm);font-size:12px;color:rgba(245,158,11,.9);">
+                        ⚠ Current default <strong>${defaultModel}</strong> ranked #${defaultRank} of ${sortedByComposite.length}${passWarn} — consider switching to <strong>${qualityJudge?.model ?? speedJudge?.model}</strong>
+                    </div>`;
+                }
+
+                recEl.innerHTML = html;
+            }
+        }
+
         async function refreshAll() {
             try {
                 const health = await api('/health');
@@ -1840,14 +3037,14 @@
                 const llmKey = document.getElementById('llm-status');
                 const llmDetail = document.getElementById('llm-status-detail');
 
-                if (health.services.llm === 'connected') {
+                if (health.services.ollama === 'connected') {
                     llmKey.textContent = 'Online';
                     llmKey.className = 'stat-value status-ok';
-                    llmDetail.textContent = health.services.llm_detail || 'Connected';
+                    llmDetail.textContent = health.services.ollama_detail || 'Connected';
                 } else {
                     llmKey.textContent = 'Offline';
                     llmKey.className = 'stat-value status-bad';
-                    llmDetail.textContent = health.services.llm_detail || 'Error';
+                    llmDetail.textContent = health.services.ollama_detail || 'Error';
                 }
 
                 renderResumes();
@@ -1899,15 +3096,20 @@
 
             list.innerHTML = items.map(r => {
                 const checked = selectedResumes.has(String(r.resume_id));
+                const initials = (r.name || '?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+                const hue = (r.resume_id * 47) % 360;
                 return `
-                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleResume(${r.resume_id}, this)">
-                        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();">
-                        <div>
-                            <div class="select-item-title">${escapeHtml(r.name)}</div>
+                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleResume(${JSON.stringify(r.resume_id)}, this)">
+                        <div class="si-avatar" style="background:hsla(${hue},55%,50%,.15);color:hsla(${hue},65%,70%,1);box-shadow:0 0 0 1px hsla(${hue},55%,50%,.25);">${initials}</div>
+                        <div style="flex:1;min-width:0;">
+                            <div class="select-item-title" style="display:flex;align-items:center;gap:6px;">
+                                ${escapeHtml(r.name)}
+                                ${checked ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent-border);">SELECTED</span>' : ''}
+                            </div>
                             <div class="select-item-meta">#${r.resume_id} · ${escapeHtml(r.title)}</div>
                         </div>
                     </div>`;
-            }).join('') || '<div class="empty">No resumes found</div>';
+            }).join('') || '<div class="empty"><span class="empty-icon">📄</span>No resumes found</div>';
         }
 
         function toggleResume(id, el) {
@@ -1931,23 +3133,26 @@
                 const checked = selectedJobs.has(String(j.job_id));
                 const applied = j.applied;
                 const urlAttr = j.source_url ? `href="${escapeHtml(j.source_url)}" target="_blank"` : '';
+                const co = (j.company || '?')[0].toUpperCase();
+                const hue = (j.job_id * 83) % 360;
                 return `
-                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleJob(${j.job_id}, this)" style="gap:8px;">
-                        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();" style="flex-shrink:0;">
+                    <div class="select-item ${checked ? 'checked' : ''}" onclick="toggleJob(${j.job_id}, this)">
+                        <div class="si-avatar" style="background:hsla(${hue},55%,50%,.15);color:hsla(${hue},65%,70%,1);box-shadow:0 0 0 1px hsla(${hue},55%,50%,.25);">${co}</div>
                         <div style="flex:1;min-width:0;">
                             <div class="select-item-title" style="display:flex;align-items:center;gap:6px;">
                                 ${escapeHtml(j.title)}
-                                ${j.source_url ? `<a ${urlAttr} onclick="event.stopPropagation();" style="font-size:10px;color:var(--text3);text-decoration:none;flex-shrink:0;" title="${escapeHtml(j.source_url)}">🔗</a>` : ''}
+                                ${j.source_url ? `<a ${urlAttr} onclick="event.stopPropagation();" style="font-size:10px;color:var(--text3);" title="${escapeHtml(j.source_url)}">↗</a>` : ''}
+                                ${checked ? '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--accent-bg);color:var(--accent-light);border:1px solid var(--accent-border);">SELECTED</span>' : ''}
                             </div>
-                            <div class="select-item-meta">#${j.job_id} · ${escapeHtml(j.company)}</div>
+                            <div class="select-item-meta">#${j.job_id} · ${escapeHtml(j.company)}${applied ? ' · <span style="color:var(--green)">✓ Applied</span>' : ''}</div>
                         </div>
                         <button onclick="event.stopPropagation();toggleApplied('${j.job_id}', ${applied})"
                             title="${applied ? 'Mark as not applied' : 'Mark as applied'}"
-                            style="flex-shrink:0;padding:2px 7px;font-size:11px;font-weight:600;border-radius:4px;border:1px solid ${applied ? 'var(--green)' : 'var(--border2)'};background:${applied ? 'rgba(34,197,94,0.12)' : 'transparent'};color:${applied ? 'var(--green)' : 'var(--text3)'};cursor:pointer;">
-                            ${applied ? '✓ Applied' : 'Applied?'}
+                            style="flex-shrink:0;padding:2px 8px;font-size:10.5px;font-weight:700;border-radius:4px;border:1px solid ${applied ? 'var(--green-border)' : 'var(--border)'};background:${applied ? 'var(--green-bg)' : 'transparent'};color:${applied ? 'var(--green)' : 'var(--text3)'};cursor:pointer;transition:all .12s;">
+                            ${applied ? '✓ Applied' : '+ Applied'}
                         </button>
                     </div>`;
-            }).join('') || '<div class="empty">No jobs found</div>';
+            }).join('') || '<div class="empty"><span class="empty-icon">💼</span>No jobs found</div>';
         }
 
         function toggleJob(id, el) {
@@ -1967,6 +3172,30 @@
             });
             jobs = await api('/jobs');
             renderJobs();
+        }
+
+        async function deleteSelectedResumes() {
+            if (!selectedResumes.size) return;
+            if (!confirm(`Delete ${selectedResumes.size} resume(s)? This cannot be undone.`)) return;
+            await Promise.all([...selectedResumes].map(id =>
+                fetch(`/resumes/${id}`, { method: 'DELETE' })
+            ));
+            selectedResumes.clear();
+            resumes = await api('/resumes');
+            renderResumes();
+            populateAnalyzerDropdowns();
+        }
+
+        async function deleteSelectedJobs() {
+            if (!selectedJobs.size) return;
+            if (!confirm(`Delete ${selectedJobs.size} job(s)? This cannot be undone.`)) return;
+            await Promise.all([...selectedJobs].map(id =>
+                fetch(`/jobs/${id}`, { method: 'DELETE' })
+            ));
+            selectedJobs.clear();
+            jobs = await api('/jobs');
+            renderJobs();
+            populateAnalyzerDropdowns();
         }
 
         function updateAnalyzerCounts() {
@@ -2018,7 +3247,7 @@
 
         // Provider / model selection logic
         const PROVIDER_DEFAULTS = {
-            ollama:      { model: "deepseek-r1:14b",                            base_url: "" },
+            ollama:      { model: "cogito:14b",                             base_url: "" },
             openrouter:  { model: "meta-llama/llama-3.1-8b-instruct:free",  base_url: "https://openrouter.ai/api/v1" },
             openai:      { model: "gpt-4o-mini",                            base_url: "https://api.openai.com/v1" },
             custom:      { model: "",                                        base_url: "" },
@@ -2177,7 +3406,24 @@
             const btn = event.currentTarget;
             const orig = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Loading…';
+
+            // Staged progress for tailored resume (takes 45-90s)
+            const REWRITE_STAGES = [
+                { key: 'gaps',    label: 'Reading gap analysis…',        ms: 0    },
+                { key: 'coach',   label: 'Applying coach recommendations…', ms: 4000 },
+                { key: 'rewrite', label: 'Rewriting resume bullets…',    ms: 18000 },
+                { key: 'ats',     label: 'Scoring ATS delta…',           ms: 55000 },
+            ];
+            let stageIdx = 0;
+            function _setStageLabel() {
+                const s = REWRITE_STAGES[Math.min(stageIdx, REWRITE_STAGES.length - 1)];
+                btn.innerHTML = `<span class="spinner"></span> ${s.label}`;
+            }
+            _setStageLabel();
+            const stageTimers = REWRITE_STAGES.slice(1).map((s, i) =>
+                setTimeout(() => { stageIdx = i + 1; _setStageLabel(); }, s.ms)
+            );
+
             try {
                 const model = getModelConfig().model || '';
                 const url = forceRegen ? `/edit_resume?regen=1` : '/edit_resume';
@@ -2186,6 +3432,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ result_id: resultId, model, force_regen: forceRegen })
                 });
+                stageTimers.forEach(clearTimeout);
                 if (!resp.ok) {
                     let msg = `HTTP ${resp.status}`;
                     try { const err = await resp.json(); msg = err.detail || msg; } catch (_) { msg = await resp.text().catch(() => msg); }
@@ -2194,6 +3441,7 @@
                 const data = await resp.json();
                 showRewriteModal(data.edited_text, data.cached, resultId);
             } catch (e) {
+                stageTimers.forEach(clearTimeout);
                 alert('Resume rewrite failed: ' + e.message);
             } finally {
                 btn.disabled = false;
@@ -2243,8 +3491,33 @@
 
         async function loadInterviewPrep(resultId, forceRegen = false) {
             const modal = _getOrCreatePrepModal(resultId, forceRegen);
-            document.getElementById('prep-body').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)"><span class="spinner"></span> Loading questions…</div>';
             modal.style.display = 'flex';
+
+            const PREP_STAGES = [
+                { label: 'Reading gap analysis…',        ms: 0     },
+                { label: 'Identifying knowledge domains…', ms: 3000  },
+                { label: 'Generating technical questions…', ms: 10000 },
+                { label: 'Adding behavioral questions…',  ms: 22000 },
+                { label: 'Ranking by priority…',         ms: 35000 },
+            ];
+            let si = 0;
+            function _prepStageHtml() {
+                return `<div style="text-align:center;padding:40px;color:var(--text2)">
+                    <span class="spinner" style="display:inline-block;margin-bottom:12px"></span>
+                    <div style="font-size:0.82rem" id="prep-stage-label">${PREP_STAGES[0].label}</div>
+                    <div style="margin-top:8px;font-size:0.72rem;color:var(--text3)" id="prep-stage-count">Step 1 / ${PREP_STAGES.length}</div>
+                </div>`;
+            }
+            document.getElementById('prep-body').innerHTML = _prepStageHtml();
+            const prepTimers = PREP_STAGES.slice(1).map((s, i) =>
+                setTimeout(() => {
+                    si = i + 1;
+                    const lbl = document.getElementById('prep-stage-label');
+                    const cnt = document.getElementById('prep-stage-count');
+                    if (lbl) lbl.textContent = s.label;
+                    if (cnt) cnt.textContent = `Step ${si + 1} / ${PREP_STAGES.length}`;
+                }, s.ms)
+            );
 
             try {
                 const model = getModelConfig().model || '';
@@ -2253,6 +3526,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ result_id: resultId, model, force_regen: forceRegen })
                 });
+                prepTimers.forEach(clearTimeout);
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => ({}));
                     throw new Error(err.detail || `HTTP ${resp.status}`);
@@ -2264,6 +3538,7 @@
                     : '<span style="font-size:11px;color:var(--accent);background:rgba(99,102,241,0.12);padding:2px 8px;border-radius:4px;">✦ Generated</span>';
                 renderPrepQuestions(data.questions || [], resultId);
             } catch (e) {
+                prepTimers.forEach(clearTimeout);
                 document.getElementById('prep-body').innerHTML = `<div style="color:var(--red);padding:20px">Failed: ${e.message}</div>`;
             }
         }
@@ -2348,33 +3623,33 @@
             const analysis = r.analysis || {};
             const m = r.metrics || {};
 
-            
+
             // Skills judge
-            const skillsJudge = (pd.skills || {}).judge_result || {};
+            const skillsJudge = (pd.skills || {}).analyser_result || {};
             const skillsData  = skillsJudge.data || {};
             const skillsAnalysis = skillsData.skill_analysis || [];
             const overallSkillsReason = skillsData.overall_reasoning || '';
 
             // Experience judge
-            const expJudge = (pd.experience || {}).judge_result || {};
+            const expJudge = (pd.experience || {}).analyser_result || {};
             const expData  = expJudge.data || {};
             const expAnalysis = expData.responsibility_analysis || [];
             const overallExpReason = expData.overall_reasoning || '';
 
             // Seniority judge
-            const senJudge = (pd.seniority || {}).judge_result || {};
+            const senJudge = (pd.seniority || {}).analyser_result || {};
             const senData  = senJudge.data || {};
             const senAnalysis = senData.seniority_analysis || [];
             const overallSenReason = senData.overall_reasoning || '';
 
             // Relevancy judge
-            const relJudge = (pd.relevancy || {}).judge_result || {};
+            const relJudge = (pd.relevancy || {}).analyser_result || {};
             const relData  = relJudge.data || {};
             const relAnalysis = relData.statement_analysis || [];
             const overallRelReason = relData.overall_reasoning || '';
 
             // Impact judge
-            const impJudge = (pd.impact || {}).judge_result || {};
+            const impJudge = (pd.impact || {}).analyser_result || {};
             const impData  = impJudge.data || {};
             const impAnalysis = impData.impact_analysis || [];
             const overallImpReason = impData.overall_reasoning || '';
@@ -2757,10 +4032,27 @@
               <text x="${cx}" y="208" text-anchor="middle" font-size="9" fill="var(--text3)">Radar Overview</text>
             </svg>`;
 
+            // Semantic similarity + suspect score banner
+            const simVal = r.semantic_similarity;
+            const suspects = Array.isArray(r.suspect_scores) ? r.suspect_scores : [];
+            let simBanner = '';
+            if (simVal !== null && simVal !== undefined) {
+                const simPct = Math.round(simVal * 100);
+                const simColor = simPct >= 60 ? '#22c55e' : simPct >= 35 ? '#f59e0b' : '#ef4444';
+                simBanner = `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+                    <span style="font-size:12px;color:var(--text2);">Semantic similarity</span>
+                    <span style="font-size:13px;font-weight:700;color:${simColor};">${simPct}%</span>
+                    ${suspects.length > 0
+                        ? `<span style="font-size:12px;color:#f59e0b;margin-left:8px;">⚠ Suspect scores: <strong>${suspects.join(', ')}</strong> — embedding says relevant but LLM scored low. Check prompt or re-run.</span>`
+                        : `<span style="font-size:12px;color:var(--text3);margin-left:8px;">No scoring anomalies detected</span>`
+                    }
+                </div>`;
+            }
+
             area.innerHTML = `<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
                 <div style="flex:1;min-width:280px;">${svgChart}</div>
                 <div style="flex-shrink:0;width:260px;">${radarSvg}</div>
-            </div>`;
+            </div>${simBanner}`;
 
             // Scroll chart into view
             card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2832,10 +4124,20 @@
             } catch(e) { console.error('Delete failed', e); }
         }
 
-        function viewResultDetailUnified(r) {
+        async function viewResultDetailUnified(r) {
             if (r._src === 'session') {
                 viewResultDetail(r._idx);
             } else {
+                if (!r.pipeline_data && r.result_id) {
+                    try {
+                        const resp = await fetch(`/results/${encodeURIComponent(r.result_id)}`);
+                        if (resp.ok) {
+                            const full = await resp.json();
+                            r.pipeline_data = full.pipeline_data;
+                            if (!r.ats_preflight) r.ats_preflight = full.ats_preflight;
+                        }
+                    } catch {}
+                }
                 renderDiskResult(r);
             }
             renderResultChart(r);
@@ -2854,27 +4156,27 @@
 
             // Pull full judge data from pipeline_data (now included in API response)
             const pd = r.pipeline_data || {};
-            const skillsJudge = (pd.skills || {}).judge_result || {};
+            const skillsJudge = (pd.skills || {}).analyser_result || {};
             const skillsData  = skillsJudge.data || {};
             const skillsAnalysis = skillsData.skill_analysis || [];
             const overallSkillsReason = skillsData.overall_reasoning || '';
 
-            const expJudge = (pd.experience || {}).judge_result || {};
+            const expJudge = (pd.experience || {}).analyser_result || {};
             const expData  = expJudge.data || {};
             const expAnalysis = expData.responsibility_analysis || [];
             const overallExpReason = expData.overall_reasoning || '';
 
-            const senJudge = (pd.seniority || {}).judge_result || {};
+            const senJudge = (pd.seniority || {}).analyser_result || {};
             const senData  = senJudge.data || {};
             const senAnalysis = senData.seniority_analysis || [];
             const overallSenReason = senData.overall_reasoning || '';
 
-            const relJudge = (pd.relevancy || {}).judge_result || {};
+            const relJudge = (pd.relevancy || {}).analyser_result || {};
             const relData  = relJudge.data || {};
             const relAnalysis = relData.statement_analysis || [];
             const overallRelReason = relData.overall_reasoning || '';
 
-            const impJudge = (pd.impact || {}).judge_result || {};
+            const impJudge = (pd.impact || {}).analyser_result || {};
             const impData  = impJudge.data || {};
             const impAnalysis = impData.impact_analysis || [];
             const overallImpReason = impData.overall_reasoning || '';
@@ -3128,7 +4430,7 @@
             const spinnerEl = document.getElementById(`session-summary-spinner-${resultId}`);
             if (!resultId || !textEl) return;
             try {
-                const model = getModelConfig().model || 'deepseek-r1:14b';
+                const model = getModelConfig().model || 'cogito:14b';
                 const res = await api('/summarize_result', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3148,7 +4450,7 @@
         async function autoSummaryForResult(r) {
             const summaryEl = document.getElementById(`disk-result-summary-${r.result_id}`);
             try {
-                const model = getModelConfig().model || 'deepseek-r1:14b';
+                const model = getModelConfig().model || 'cogito:14b';
                 const res = await api('/summarize_result', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -3173,7 +4475,7 @@
             spinner.style.display = 'inline-block';
             summaryContent.textContent = '';
             try {
-                const model = getModelConfig().model || 'deepseek-r1:14b';
+                const model = getModelConfig().model || 'cogito:14b';
                 const batchData = currentResults.map(r => ({
                     resume: r.resume_name,
                     job: r.job_title,
@@ -3187,7 +4489,17 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ batch_data: JSON.stringify(batchData, null, 2), model })
                 });
-                summaryContent.textContent = res.summary || 'No summary returned.';
+                let summaryText = res.summary || 'No summary returned.';
+                // If model returned JSON instead of prose, render it as readable text
+                try {
+                    const parsed = JSON.parse(summaryText);
+                    if (typeof parsed === 'object') {
+                        summaryText = Object.entries(parsed)
+                            .map(([k, v]) => `${k.replace(/_/g,' ')}: ${v}`)
+                            .join('\n');
+                    }
+                } catch (_) {}
+                summaryContent.textContent = summaryText;
             } catch (e) {
                 summaryContent.textContent = 'Summary failed: ' + e.message;
             } finally {
@@ -3197,6 +4509,7 @@
 
         // Analyzer dropdown functions
         function populateAnalyzerDropdowns() {
+            populateBenchmarkDropdowns();
             const resumeSelect = document.getElementById('analyzer-resume-select');
             const jobSelect = document.getElementById('analyzer-job-select');
 
@@ -3276,6 +4589,18 @@
         }
 
         // ── ATS Checker ──────────────────────────────────────────────────────────
+        function _renderAtsGradeBadge(d, resumeText) {
+            const gc = d.score >= 80 ? 'var(--green)' : d.score >= 60 ? 'var(--amber,#f59e0b)' : 'var(--red)';
+            const safe = (resumeText || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+            return `<span title="ATS ${d.score}/100 — click to open ATS Checker" onclick="openAtsForResume('${safe}')" style="cursor:pointer;font-weight:700;font-size:12px;color:${gc};">${d.grade} <span style="font-weight:400;color:var(--text3);">${d.score}</span></span>`;
+        }
+
+        function openAtsForResume(resumeText) {
+            document.getElementById('ats-resume-input').value = resumeText;
+            showView('ats-checker');
+            runAtsCheck();
+        }
+
         async function runAtsCheck() {
             const resumeText = document.getElementById('ats-resume-input').value.trim();
             if (!resumeText) { document.getElementById('ats-status').textContent = 'Resume text required.'; return; }
@@ -3284,19 +4609,46 @@
             const status = document.getElementById('ats-status');
             btn.disabled = true; btn.textContent = 'Checking…';
             status.textContent = 'Running ATS scan…';
+            const ATS_AUDIT_STAGES = ['Parsing resume structure…', 'Evaluating metric caliber…', 'Checking role targeting…', 'Scanning semantic red flags…', 'Compiling audit report…'];
+            let _atsStageIdx = 0;
+            function _atsStageHtml() {
+                return `<hr style="border:none;border-top:1px solid var(--border);margin:0;">
+                <div style="padding:20px 16px;color:var(--text3);font-size:13px;text-align:center;">
+                    <span class="spinner" style="display:inline-block;margin-bottom:10px"></span>
+                    <div id="ats-audit-stage" style="margin-bottom:4px;">${ATS_AUDIT_STAGES[0]}</div>
+                    <div style="font-size:11px;">LLM analysis may take 15–30 seconds</div>
+                </div>`;
+            }
+            document.getElementById('ats-deep-audit-results').innerHTML = _atsStageHtml();
+            const atsAuditTimers = ATS_AUDIT_STAGES.slice(1).map((s, i) =>
+                setTimeout(() => {
+                    const el = document.getElementById('ats-audit-stage');
+                    if (el) el.textContent = s;
+                }, (i + 1) * 5000)
+            );
             try {
-                const resp = await fetch('/ats-check', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ resume_text: resumeText, job_description: jdText })
-                });
-                if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${resp.status}`); }
-                const data = await resp.json();
+                const payload = JSON.stringify({ resume_text: resumeText, job_description: jdText });
+                const headers = { 'Content-Type': 'application/json' };
+
+                // Fire both immediately — render heuristic the moment it lands,
+                // don't hold the UI hostage waiting for the LLM deep audit.
+                const auditPromise = fetch('/ats-deep-audit', { method: 'POST', headers, body: payload })
+                    .then(r => r.json())
+                    .then(d => { atsAuditTimers.forEach(clearTimeout); renderDeepAudit(d); })
+                    .catch(() => { atsAuditTimers.forEach(clearTimeout); renderDeepAudit(null); });
+
+                const heuristicResp = await fetch('/ats-check', { method: 'POST', headers, body: payload });
+                if (!heuristicResp.ok) { const e = await heuristicResp.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${heuristicResp.status}`); }
+                const heuristicData = await heuristicResp.json();
                 status.textContent = '';
-                renderAtsResults(data);
+                renderAtsResults(heuristicData);
+                btn.disabled = false; btn.textContent = 'Run ATS Check';
+
+                // Deep audit resolves whenever Ollama is free — UI updates automatically
+                await auditPromise;
             } catch (err) {
                 status.textContent = `Error: ${escapeHtml(err.message)}`;
-            } finally {
+                document.getElementById('ats-deep-audit-results').innerHTML = '';
                 btn.disabled = false; btn.textContent = 'Run ATS Check';
             }
         }
@@ -3332,6 +4684,72 @@
             }
             html += '</div>';
             document.getElementById('ats-results').innerHTML = html;
+        }
+
+        function renderDeepAudit(data) {
+            const el = document.getElementById('ats-deep-audit-results');
+            if (!data || !data.success) {
+                el.innerHTML = data
+                    ? `<hr style="border:none;border-top:1px solid var(--border);margin:0;">
+                       <div style="padding:14px 16px;color:var(--text3);font-size:12px;text-align:center;">Deep audit unavailable — ${escapeHtml(data.error || 'LLM error')}</div>`
+                    : '';
+                return;
+            }
+            const verdictColor = v => v === 'PASS' ? 'var(--green)' : v === 'REVIEW' ? 'var(--amber,#f59e0b)' : 'var(--red)';
+            const verdictBg    = v => v === 'PASS' ? 'rgba(34,197,94,.1)' : v === 'REVIEW' ? 'rgba(245,158,11,.1)' : 'var(--red-bg)';
+
+            let html = `<hr style="border:none;border-top:1px solid var(--border);margin:0;">
+                <div style="padding:14px 16px 4px;">
+                    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:10px;">Disqualifiers</div>`;
+            for (const d of (data.disqualifiers || [])) {
+                html += `<div style="display:flex;gap:10px;padding:10px 12px;margin-bottom:8px;background:var(--red-bg);border:1px solid rgba(239,68,68,.2);border-radius:var(--radius-sm);font-size:12px;">
+                    <span style="font-weight:800;color:var(--red);flex-shrink:0;">#${d.rank}</span>
+                    <div><div style="font-weight:700;color:var(--red);margin-bottom:3px;">${escapeHtml(d.title)}</div>
+                    <div style="color:var(--text2);">${escapeHtml(d.explanation)}</div></div>
+                </div>`;
+            }
+
+            html += `</div><div style="padding:4px 16px 4px;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:10px;">Dissections &amp; Rewrites</div>`;
+            for (const r of (data.rewrites || [])) {
+                html += `<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;font-size:12px;">
+                    <div style="padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);">
+                        <div style="color:var(--text3);text-decoration:line-through;margin-bottom:4px;">${escapeHtml(r.original)}</div>
+                        <div style="color:var(--amber,#f59e0b);font-style:italic;">↳ ${escapeHtml(r.why_fails)}</div>
+                    </div>
+                    <div style="padding:8px 12px;background:rgba(34,197,94,.06);">
+                        <span style="color:var(--green);font-weight:600;">✓ </span>${escapeHtml(r.refactored)}
+                    </div>
+                </div>`;
+            }
+
+            html += `</div><div style="padding:4px 16px 16px;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:10px;">Scorecard</div>
+                <div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;font-size:12px;">`;
+            const sc = data.scorecard || {};
+            [['ats_parsability','ATS Parsability'],['metric_caliber','Metric Caliber'],
+             ['role_targeting','Role Targeting'],['semantic_red_flags','Semantic Red Flags']
+            ].forEach(([key, label], i) => {
+                const dim = sc[key] || {};
+                const v = dim.verdict || 'REVIEW';
+                html += `<div style="padding:9px 12px;${i > 0 ? 'border-top:1px solid var(--border);' : ''}background:var(--surface);">
+                    <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;">
+                        <div style="font-weight:600;">${label}</div>
+                        <div style="font-weight:700;">${(dim.score||0).toFixed(1)}/10</div>
+                        <div style="padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;background:${verdictBg(v)};color:${verdictColor(v)};">${v}</div>
+                    </div>
+                    ${dim.note ? `<div style="color:var(--text3);font-size:11px;margin-top:3px;">${escapeHtml(dim.note)}</div>` : ''}
+                    ${dim.improvement ? `<div style="color:var(--text2);font-size:11px;margin-top:3px;padding:4px 8px;background:rgba(99,102,241,.08);border-left:2px solid var(--indigo,#6366f1);border-radius:0 3px 3px 0;">→ ${escapeHtml(dim.improvement)}</div>` : ''}
+                </div>`;
+            });
+            const ov = sc.overall_verdict || 'REVIEW';
+            html += `</div>
+                <div style="margin-top:10px;padding:10px 14px;border-radius:var(--radius-sm);background:${verdictBg(ov)};border:1px solid ${verdictColor(ov)}55;display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-weight:700;font-size:13px;">Overall Verdict</span>
+                    <span style="font-size:16px;font-weight:800;color:${verdictColor(ov)};">${ov}</span>
+                </div>
+            </div>`;
+            el.innerHTML = html;
         }
 
         // ── Career Paths ─────────────────────────────────────────────────────────

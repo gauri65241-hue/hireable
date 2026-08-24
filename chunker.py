@@ -61,22 +61,22 @@ class RoleBlock:
 
 _JD_SECTION_PATTERNS = {
     "required": re.compile(
-        r"(required|must.have|minimum qualifications?|basic qualifications?|"
-        r"what you.ll need|you must|you should have|requirements?)\s*[:\-]?\s*\n",
+        r"(required\s+skills?|required|must.have|minimum qualifications?|basic qualifications?|"
+        r"what you.ll need|you must|you should have|requirements?)\s*[:\-]?\s*[\n ]",
         re.I,
     ),
     "preferred": re.compile(
         r"(preferred|nice.to.have|bonus|plus|desired|advantage|"
-        r"additional qualifications?|what.s a plus)\s*[:\-]?\s*\n",
+        r"additional qualifications?|what.s a plus)\s*[:\-]?\s*[\n ]",
         re.I,
     ),
     "responsibilities": re.compile(
         r"(responsibilities|what you.ll do|your role|duties|"
-        r"key responsibilities|job duties|about the role|you will)\s*[:\-]?\s*\n",
+        r"key responsibilities|job duties|about the role|you will)\s*[:\-]?\s*[\n ]",
         re.I,
     ),
     "experience": re.compile(
-        r"(experience|background|qualifications?|about you)\s*[:\-]?\s*\n",
+        r"(experience required|background|qualifications?|about you)\s*[:\-]?\s*[\n ]",
         re.I,
     ),
 }
@@ -113,6 +113,24 @@ _DATE_RANGE_PATTERN = re.compile(r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|
 _METRIC_PATTERN = re.compile(r"\d+[\.,]?\d*\s*(%|x|times|k\b|m\b|bn\b|ms\b|s\b|hrs?\b|days?\b|users?|customers?|records?|queries|requests?|models?|projects?|teams?)", re.I)
 _JS_SIGNAL = re.compile(r"(window\.|\.js\b|NREUM|const\s+\w|function\s*\(|=>\s*\{|\.init\s*=|webpack|bundle\.js)", re.I)
 
+_BOILERPLATE_HEADER = re.compile(
+    r"^\s*(about\s+(us|the\s+company|revolut|\w+)|life\s+at\s+\w+|who\s+we\s+are|"
+    r"our\s+(culture|values|mission|story|team|people)|"
+    r"diversity|inclusion|equal\s+opportunity|"
+    r"benefits?(\s+&\s+perks?)?|perks?(\s+&\s+benefits?)?|"
+    r"compensation|why\s+(join|work\s+(at|for|with))|"
+    r"what\s+we\s+offer|our\s+offer|employee\s+perks?)\s*[:\-]?\s*$",
+    re.I | re.M,
+)
+
+def _strip_boilerplate(text: str) -> str:
+    """Remove trailing employer-branding / D&I / benefits blocks from a JD."""
+    match = _BOILERPLATE_HEADER.search(text)
+    if match:
+        # Keep everything before the first boilerplate header
+        return text[:match.start()].rstrip()
+    return text
+
 
 # ── JD parser ─────────────────────────────────────────────────────────────────
 
@@ -134,6 +152,7 @@ def parse_jd(text: str) -> JDChunks:
         chunks.raw_truncated = text[:200]
         return chunks
 
+    text = _strip_boilerplate(text)
     chunks.raw_truncated = text[:3000]
     lines = text.splitlines()
 
@@ -210,9 +229,13 @@ def parse_resume(text: str, name: str = "") -> ResumeChunks:
     chunks.summary = summary_text.strip()[:500]
 
     skills_text = raw_sections.get("skills") or ""
+    if not skills_text:
+        # Inline format: "Skills: Python (statsmodels, scipy...), SQL, R" — content on same line as header
+        m = re.search(r'\bskills?\s*:\s*(.+)', text, re.I)
+        if m:
+            skills_text = m.group(1).strip()
     if skills_text:
-        extracted = re.split(r"[,|•\n·]+", skills_text)
-        chunks.skills = [s.strip() for s in extracted if 2 < len(s.strip()) < 50][:40]
+        chunks.skills = _split_skills(skills_text)
     else:
         # Fallback: extract tech keywords from full text
         chunks.skills = _extract_tech_mentions(text)
@@ -266,11 +289,20 @@ def format_for_skills_judge(jd: JDChunks, resume: ResumeChunks) -> tuple[str, st
         ("Preferred Skills", _bullet_list(jd.preferred_skills)),
     ])
 
+    # Include work history bullets so the judge can find skills mentioned in
+    # experience context (e.g. "GitHub Actions", "SOC2", specific AWS services)
+    # that the keyword extractor may not surface in the skills list.
+    history_lines = []
+    for role in resume.work_history[:4]:
+        history_lines.append(f"{role.title} at {role.company} ({role.duration})")
+        history_lines.extend(f"  • {b}" for b in role.bullets[:5])
+
     resume_block = _build_block("CANDIDATE PROFILE", [
         ("Name", resume.name),
         ("Core Skills", _comma_list(resume.skills) or resume.raw_truncated[:600]),
         ("Technologies Used (from experience)", _comma_list(resume.tech_in_experience)),
         ("Summary", resume.summary),
+        ("Work History", "\n".join(history_lines)),
     ])
 
     return jd_block, resume_block
@@ -403,9 +435,14 @@ def _extract_bullets_and_sentences(text: str) -> list[str]:
     if bullets:
         return [b.strip() for b in bullets if len(b.strip()) > 10]
 
-    # No bullets — split by newline or period
+    # No bullets — try newlines first, then period-split sentences
     lines = [l.strip() for l in text.splitlines() if len(l.strip()) > 15]
-    return lines[:15]
+    if lines:
+        return lines[:15]
+
+    # Flat paragraph — split on period+space
+    sentences = [s.strip() for s in re.split(r'\.\s+', text) if len(s.strip()) > 15]
+    return sentences[:15]
 
 
 _ROLE_TITLE_PATTERN = re.compile(
@@ -476,6 +513,36 @@ def _parse_work_history(text: str) -> list[RoleBlock]:
         roles.append(current)
 
     return roles[:8]
+
+
+def _split_skills(text: str) -> list[str]:
+    """Split a skills string on delimiters but preserve parenthetical groups intact.
+
+    "Python (statsmodels, scipy, pandas), R, SQL" → ["Python (statsmodels, scipy, pandas)", "R", "SQL"]
+    Plain comma-split would destroy "Python (statsmodels, scipy, pandas)" into fragments.
+    """
+    skills: list[str] = []
+    depth = 0
+    buf: list[str] = []
+    for ch in text:
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch in ",|•·\n" and depth == 0:
+            s = "".join(buf).strip()
+            if 2 < len(s) < 80:
+                skills.append(s)
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        s = "".join(buf).strip()
+        if 2 < len(s) < 80:
+            skills.append(s)
+    return skills[:40]
 
 
 def _extract_tech_mentions(text: str) -> list[str]:
@@ -557,7 +624,13 @@ def _extract_seniority_signals(text: str) -> list[str]:
 
 def _detect_domain(text: str) -> str:
     DOMAINS = {
-        "Machine Learning / AI": ["machine learning", "deep learning", "llm", "nlp", "computer vision", "neural network", "ai engineer", "ml engineer", "data scientist"],
+        "Machine Learning / AI": [
+            "machine learning", "deep learning", "llm", "nlp", "computer vision",
+            "neural network", "ai engineer", "ml engineer", "data scientist",
+            "generative ai", "large language model", "langchain", "langgraph",
+            "huggingface", "transformers", "embeddings", "rag", "retrieval",
+            "pytorch", "tensorflow", "foundation model", "agentic", "ai/ml",
+        ],
         "Data Engineering": ["data pipeline", "etl", "spark", "kafka", "airflow", "dbt", "data warehouse", "lakehouse"],
         "Backend Engineering": ["api", "microservices", "backend", "server-side", "rest", "grpc", "database"],
         "Frontend Engineering": ["react", "vue", "angular", "frontend", "ui/ux", "css", "html"],
@@ -566,11 +639,15 @@ def _detect_domain(text: str) -> str:
         "Security / Pentesting": ["penetration testing", "pentest", "cybersecurity", "vulnerability", "ethical hacking"],
     }
     text_lower = text.lower()
+    # Extract first 200 chars as title region — title keyword matches count 3x
+    title_region = text_lower[:200]
     best = ("General", 0)
     for domain, keywords in DOMAINS.items():
         score = sum(1 for kw in keywords if kw in text_lower)
-        if score > best[1]:
-            best = (domain, score)
+        title_bonus = sum(3 for kw in keywords if kw in title_region)
+        total = score + title_bonus
+        if total > best[1]:
+            best = (domain, total)
     return best[0]
 
 

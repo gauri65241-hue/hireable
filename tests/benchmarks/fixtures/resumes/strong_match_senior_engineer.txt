@@ -1,0 +1,32 @@
+Sarah Chen
+sarah.chen@email.com | (415) 555-0192 | linkedin.com/in/sarahchen
+
+SUMMARY
+Staff Software Engineer with 9 years building distributed systems at scale. Led teams of 6–10
+engineers. Deep expertise in Python, Go, and cloud-native architectures on AWS.
+
+SKILLS
+Python, Go, AWS (ECS, Lambda, RDS, S3, CloudWatch), Kubernetes, Docker, PostgreSQL, Redis,
+Kafka, Terraform, GitHub Actions, Datadog, FastAPI, gRPC, REST
+
+EXPERIENCE
+Staff Software Engineer – DataStream Inc (2020–2024)
+- Designed and led implementation of event-driven microservices architecture handling 2M events/day,
+  reducing p99 latency from 800ms to 120ms
+- Mentored team of 8 engineers; conducted 40+ technical interviews and established hiring bar
+- Led cross-team migration from monolith to 12 microservices; zero-downtime deployment to 3M users
+- Reduced infrastructure cost by $480k/year through auto-scaling and spot instance optimization
+
+Senior Software Engineer – CloudBase Corp (2017–2020)
+- Built real-time data pipeline processing 500k records/hour using Kafka and Flink
+- Owned PostgreSQL performance: implemented partitioning and connection pooling, reducing query
+  time by 65% for 200M-row tables
+- Delivered Python SDK adopted by 800+ external developers with 4.8/5 satisfaction rating
+
+Software Engineer – StartupXYZ (2015–2017)
+- Built REST APIs serving 50k daily active users with 99.9% uptime SLA
+- Reduced CI/CD cycle time from 45 minutes to 8 minutes using parallel test execution
+
+EDUCATION
+BS Computer Science – University of California, Berkeley (2015)
+GPA: 3.7 | Dean's List 3 years

@@ -57,11 +57,19 @@ Thumbs.db
 *.temp
 .cache/
 
-# Personal data — keep empty CSVs (headers only) but ignore benchmark output
+# Data and eval outputs — keep only sample files
+data/application_log.csv
+data/eval_results.jsonl
+data/eval_results_v1_csv_labels.jsonl
+data/eval_set.json
+data/kappa_*.csv
+data/model_benchmark_*.json
+data/benchmarks/
+data/labels/
+data/resumes.csv
+data/jobs.csv
+data/labels.csv
 benchmark_results.json
-
-# Ignore content changes to data CSVs after initial empty commit
-# (use: git update-index --skip-worktree data/resumes.csv data/jobs.csv data/labels.csv)
 
 # Results — keep folder structure, exclude all content files
 results/**
@@ -76,8 +84,13 @@ node_modules/
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+
+# Secrets
+data/.jwt_secret
 
 # Backup files
 *.bak
