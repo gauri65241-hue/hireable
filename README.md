@@ -2,93 +2,30 @@
 
 ![CI](https://github.com/gauri65241-hue/hireable/actions/workflows/ci.yml/badge.svg)
 
-An LLM-as-judge pipeline that scores resume-to-job fit across 5 independent dimensions, runs an instant ATS compliance check, matches your skills against 20 income paths, and generates a tailored resume and role-specific interview prep — running entirely locally via Ollama with no cloud dependency or API costs.
-
----
-
-## Why this exists
-
-Job applications involve problems most tools ignore:
-
-1. **Opaque scoring** — applicant tracking systems score resumes without explanation. You don't know if you're failing on skills, seniority match, domain fit, or something else.
-2. **Generic advice** — "add more keywords" doesn't tell you which keywords, whether your experience framing is wrong, or whether you're applying to jobs above or below your actual level.
-3. **No path awareness** — a resume score against one JD doesn't tell you which income paths you're actually positioned for right now.
-
-This pipeline makes scoring transparent and advice specific. Each judge explains its reasoning. The coach only rewrites bullets that already exist — it never invents experience or fabricates metrics. If a gap is real, it flags it as a gap rather than masking it.
-
-The system runs locally because resume data is personal. Nothing leaves your machine.
+LLM-as-judge pipeline that scores resume-job fit across 5 independent dimensions. Each judge runs a structured prompt, returns labelled JSON, and all scoring arithmetic happens in Python — not delegated to the LLM. A coach agent synthesises recommendations across judges and rewrites existing bullets without fabricating experience.
 
 ---
 
 ## What it does
 
-### System Health
-Monitor API status, database connectivity, and LLM service health in real time.
+### 5-Judge Scoring Pipeline
 
-![System Health](assets/screenshot_system_health.png)
-
-### Jobs — multiple import modes
-Add jobs four ways:
-- **Manual entry** — paste fields directly
-- **URL Fetch** — paste any job board URL; scrapes the full JD (up to 15k chars), strips page chrome, preserves all role content. Source URL saved alongside the job.
-- **Bulk Import** — paste multiple URLs, one per line; fetches sequentially with per-row live status. LinkedIn URLs are flagged and skipped (require auth).
-- **Quick Paste** — copy the full JD text from anywhere and paste it; LLM extracts structured fields without any HTTP fetch.
-
-Each saved job shows an **Applied?** toggle that persists to disk.
-
-### Analyzer — 5-judge LLM pipeline
-Score a resume against a job description across 5 independent dimensions. Each judge runs a structured prompt, parses the JSON response, and returns a score + gap list. All five run concurrently before the coach synthesises.
-
-Batch mode deduplicates jobs by title+company before running — duplicate imports only run once.
-
-![Results Table](assets/screenshot_results_table.png)
-
-![Results Analysis](assets/screenshot_results_analysis.png)
-
-![Judge Breakdown](assets/screenshot_judge_breakdown.png)
-
-![Impact & Coach](assets/screenshot_impact_coach.png)
-
-![Coach Recommendations](assets/screenshot_coach_recommendations.png)
-
-![Tailored Resume](assets/screenshot_tailored_resume.png)
-
-![Interview Prep](assets/screenshot_interview_prep.png)
-
-### Results — full judge detail
-Each result shows per-judge breakdowns (skill rows, responsibility rows, seniority signals, relevancy mapping, impact quantification) loaded from SQLite. Three outcome checkboxes per result: **Applied?** (marks the job), **Got the interview?**, **Got the job?** — the latter two feed back into judge weight calibration.
-
-### ATS Checker — instant structural scan
-9-criterion heuristic check with no LLM. Results in under a second. PDF-aware: correctly handles text where pypdf/pdfminer strips bullet characters and collapses section headings.
-
-![ATS Checker](assets/screenshot_ats_checker.png)
-
-### Career Paths — skill-to-income matching
-Scores your resume skills against 20 income paths (full-time, freelance, consulting, content). Shows match %, gaps in required skills, and a 30-day starter plan per path. No LLM — pure skill token overlap scoring.
-
-![Career Paths](assets/screenshot_career_paths.png)
-
----
-
-## How the pipeline works
+Each judge evaluates one dimension independently. All five run concurrently before the coach synthesises.
 
 ```
 Resume + Job Description
          │
          ├─► ATS Pre-flight (instant, no LLM)
-         │    9 criteria: contact info, headings, bullets,
-         │    action verbs, quantification, dates, length,
-         │    no tables, JD keyword match
          │
          ▼
 ┌────────────────────────────────────────┐
 │         5 Parallel LLM Judges          │
 │                                        │
-│  Skills (25%)    → skill gap analysis  │
-│  Experience (25%)→ depth + relevance   │
-│  Seniority (20%) → level match         │
-│  Relevancy (15%) → domain alignment    │
-│  Impact (15%)    → quantified outcomes │
+│  Skills     (25%) → skill gap analysis │
+│  Experience (25%) → depth + relevance  │
+│  Seniority  (20%) → level match        │
+│  Relevancy  (15%) → domain alignment   │
+│  Impact     (15%) → quantified outcomes│
 └────────────────────────────────────────┘
          │
          ▼
@@ -97,209 +34,51 @@ Resume + Job Description
          ▼
 ┌────────────────────────────────────────┐
 │            Coach Judge                 │
-│                                        │
-│  bullet_rewrite  → reframe existing    │
-│  deletion        → remove irrelevant   │
-│  gap_warning     → flag real gaps      │
+│  bullet_rewrite → reframe existing     │
+│  deletion       → remove irrelevant    │
+│  gap_warning    → flag real gaps       │
 └────────────────────────────────────────┘
          │
-         ├─► Tailored resume  (saved to SQLite tailored_text column)
-         └─► Interview prep   (generated on demand from SQLite run data)
+         ├─► Tailored resume
+         └─► Interview prep
 ```
 
-Each judge runs a structured prompt against the LLM, parses the JSON response, and returns a score + reasoning. The pipeline runs all 5 judges concurrently (asyncio) before the coach synthesises across them.
+### Scoring internals
 
-The coach deduplicates recommendations across judges before generating rewrites. `gap_warning` items are informational — they surface real skill gaps without pretending the resume can be edited to fix them.
+The LLM extracts and labels; Python scores. This keeps scoring deterministic and auditable.
 
----
+| Judge | Formula |
+|-------|---------|
+| Skills, Experience | `(present + 0.5 × partial) / total` |
+| Seniority, Relevancy | `binary: demonstrated / total` |
+| Impact | `(quantified + 0.5 × directional) / total` |
+| Overall | `skills×0.25 + experience×0.25 + seniority×0.20 + relevancy×0.15 + impact×0.15` |
 
-## Model selection
+### Evaluation harness
 
-The pipeline uses **`deepseek-r1:14b`** as the judge model. This was chosen after benchmarking all locally-available models across 6 resume-job pairs (including a deliberate wrong-fit pair to test discrimination).
+- Spearman correlation, Cohen's Kappa, F1, precision/recall against human-labelled ground truth
+- Adversarial test suite: injection attempts, keyword stuffing, tag breakout, empty resume
+- Benchmark scripts for model selection across judge parse success rate and discrimination accuracy
 
-Criteria ranked in order:
-1. **Judge parse success rate** — does the model reliably return valid structured JSON across all 6 judges?
-2. **Discrimination accuracy** — does it correctly score a Java engineer low against a Data Scientist role?
-3. **Latency** — time per full pipeline run on local hardware
+### ATS Checker
 
-`deepseek-r1:14b` passed all 6 judges on all test pairs and correctly identified the wrong-fit case. Its chain-of-thought reasoning style (`<think>` tokens) produces more reliable structured output than instruction-tuned models that tend to hallucinate JSON fields or collapse scores to round numbers.
+9-criterion heuristic scan with no LLM — results in under a second. PDF-aware: handles pypdf/pdfminer stripping bullet characters and collapsing section headings.
 
-### Model by available RAM
+### Career Paths
 
-| RAM | Recommended model | Pull command | Notes |
-|-----|------------------|--------------|-------|
-| 16 GB+ | `deepseek-r1:14b` | `ollama pull deepseek-r1:14b` | Default. Best JSON reliability across all 6 judges. |
-| 8 GB | `qwen2.5:7b` | `ollama pull qwen2.5:7b` | Best structured-output at 7B. ~4.5 GB model weight. Expect occasional judge parse retries. |
-| 8 GB (alt) | `deepseek-r1:7b` | `ollama pull deepseek-r1:7b` | Same model family as default, half the weight. CoT style helps JSON reliability. |
-| 4–8 GB | `phi4-mini` | `ollama pull phi4-mini` | ~2.5 GB. Reliable JSON but weaker on seniority and impact discrimination. |
-| <4 GB | `llama3.2:3b` | `ollama pull llama3.2:3b` | Lightweight fallback. Pipeline retries compensate for parse failures. |
-
-### How to change the model
-
-The default is **`deepseek-r1:14b`**. If your RAM changes — upgrading hardware, moving to a different machine, or needing a lighter model — follow these steps:
-
-**Step 1 — Pull the new model**
-```bash
-ollama pull <model-name>    # e.g. ollama pull qwen2.5:7b
-ollama serve
-```
-
-**Step 2 — Start the server** (if not already running)
-```bash
-uvicorn linkedin_api:app --reload
-```
-
-**Step 3 — Switch model in the dashboard**
-
-Open `http://localhost:8000` → go to the **Analyzer** tab → find the model selector dropdown → type the new model name (e.g. `qwen2.5:7b`). The dropdown accepts free text — no code changes required.
-
-**Step 4 — Run analysis as normal**
-
-The selected model applies to that session. The default shown in the dropdown is always `deepseek-r1:14b` on page load — you only need to change it if you're not running the default.
-
-> ATS Checker and Career Paths use no LLM and require no model changes — they work regardless of what Ollama is running.
-
-### Pipeline timing (approximate, local Ollama on M-series Mac)
-
-| Feature | Model | Time |
-|---------|-------|------|
-| Full 5-judge + coach pipeline | deepseek-r1:14b | 3–5 min |
-| Full 5-judge + coach pipeline | qwen2.5:7b | 1.5–3 min |
-| Tailored resume generation | deepseek-r1:14b | 45–90 sec |
-| Interview prep generation | deepseek-r1:14b | 30–60 sec |
-| ATS Checker | — (no LLM) | < 1 sec |
-| Career Paths skill match | — (no LLM) | < 1 sec |
-
-Times vary with resume/JD length and hardware. ATS Checker and Career Paths are instant regardless of RAM or Ollama state.
-
-To run the benchmark yourself:
-
-```bash
-python benchmark_models.py
-```
-
-Results are written to `benchmark_results.json`. The pipeline uses whatever model you configure in the dashboard — defaults to `deepseek-r1:14b`.
+Scores resume skills against 20 income paths (full-time, freelance, consulting, content). Pure token overlap — no LLM.
 
 ---
 
 ## Stack
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Backend | FastAPI + Uvicorn | Async-native, suits concurrent judge calls |
-| LLM runtime | Ollama | Local inference, model switching without code changes |
-| Judge model | deepseek-r1:14b | Best structured-output reliability in benchmark |
-| LLM client | LangChain Ollama | Thin wrapper for chat message formatting |
-| Persistence | SQLite (db.py) | Run history, scores, tailored text — survives server restarts |
-| Frontend | Single-file `dashboard.html` | Zero build step, no framework dependency |
-| Data store | CSV + JSON | Portable, readable, easy to gitignore selectively |
-
----
-
-## Setup
-
-**Prerequisites:** [Ollama](https://ollama.com) installed and running.
-
-```bash
-# Pull the judge model
-ollama pull deepseek-r1:14b
-ollama serve
-```
-
-**Install dependencies:**
-
-```bash
-# Conda (recommended)
-conda env create -f environment.yml
-conda activate hireable
-
-# Or pip
-pip install -r requirements.txt
-```
-
-**Configure environment:**
-
-```bash
-cp .env.example .env
-# Edit .env — set OLLAMA_MODEL if you want a different model
-```
-
----
-
-## Run
-
-```bash
-uvicorn linkedin_api:app --reload
-```
-
-Open `http://localhost:8000` in a browser.
-
-1. Add a resume and job description via the **Resumes** and **Jobs** tabs — or paste directly in the Analyzer
-2. Go to **Analyzer** → select resume + job → click **Run Analysis**
-3. Results appear in the **Results** tab with scores, gaps, and coach recommendations
-4. From any result, generate a **Tailored Resume** or **Interview Prep**
-
-For instant checks without running the full LLM pipeline:
-- **ATS Checker** → paste resume (or select saved / upload PDF) → instant 9-criterion structural scan
-- **Career Paths** → paste resume → ranked match against 20 income paths with gap analysis
-
----
-
-## API endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /analyze` | Run all 5 judges + coach on a resume-job pair |
-| `POST /ats-check` | Instant ATS scan — no LLM, 9 criteria |
-| `POST /skill-match` | Score resume skills against 20 income paths |
-| `POST /edit_resume` | Apply coach recommendations → tailored resume (saved to SQLite) |
-| `POST /interview_prep` | Generate role-specific questions + model answers from SQLite run |
-| `GET /list_results` | List all saved pipeline results from SQLite |
-| `DELETE /results/{id}` | Delete a result from SQLite |
-| `GET /resumes` | List resumes |
-| `POST /resumes` | Save a new resume |
-| `GET /jobs` | List jobs |
-| `POST /jobs` | Save a new job |
-| `PATCH /jobs/{id}/applied` | Toggle applied status on a job |
-| `POST /fetch-job-url` | Scrape full JD from URL (up to 15k chars, Playwright fallback) |
-| `POST /parse-jd-text` | Parse pasted JD text into structured fields via LLM |
-| `POST /extract-pdf` | Extract text + structured fields from PDF resume |
-| `POST /summarize_result` | Generate AI summary for a saved result |
-
-Auto-generated docs at `http://localhost:8000/docs` when server is running.
-
----
-
-## Data files
-
-| File | Description |
-|------|-------------|
-| `data/resumes.csv` | Resumes — see `resumes.sample.csv` for format |
-| `data/jobs.csv` | Job descriptions — see `jobs.sample.csv` for format |
-| `data/labels.csv` | Optional human labels for evaluation |
-| `data/skills_taxonomy.json` | 10 skill domains → canonical tokens used by skills judge |
-| `data/income_paths.json` | 20 income paths with required skills, income ranges, starter plans |
-| `data/runs.db` | SQLite run history — gitignored |
-
-To prevent git from tracking personal data after initial commit:
-
-```bash
-git update-index --skip-worktree data/resumes.csv data/jobs.csv data/labels.csv
-```
-
----
-
-## Persistence
-
-All run data is stored in SQLite (`data/runs.db`) — no results folder. The DB is created automatically on first server start and is gitignored.
-
-| What | Where |
-|------|-------|
-| Pipeline results (all 5 judges + coach) | `data/runs.db` → `runs` table |
-| Tailored resume text | `runs.tailored_text` column |
-| ATS validation before/after | `runs.ats_validation_json` column |
-| Outcome feedback (interview / job) | `data/outcomes.jsonl` |
-| Judge calibration feedback | `data/judge_feedback.jsonl` |
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI + Uvicorn (async, concurrent judge calls) |
+| LLM provider | OpenRouter (configurable model pool) |
+| Persistence | SQLite — run history, scores, tailored text |
+| Frontend | React + TypeScript + Vite + Tailwind |
+| Deployment | Docker + docker-compose + nginx |
 
 ---
 
@@ -307,75 +86,120 @@ All run data is stored in SQLite (`data/runs.db`) — no results folder. The DB 
 
 ```
 hireable/
-├── linkedin_api.py         # FastAPI app — all endpoints
-├── specialized_judges.py   # Judge prompts, LLM calls, JSON parsing, coach
-├── ats_checker.py          # 9-criterion ATS heuristic scanner (no LLM)
-├── chunker.py              # Text parsing and prompt formatting per judge
-├── db.py                   # SQLite persistence for run history
-├── benchmark_models.py     # Model selection benchmark
-├── dashboard.html          # Frontend — all views in one file
+├── linkedin_api.py          # FastAPI app entry point
+├── analysers/               # One module per judge dimension
+│   ├── skills/
+│   ├── experience/
+│   ├── seniority/
+│   ├── relevancy/
+│   ├── impact/
+│   ├── coach/
+│   └── engine.py            # Runs all judges concurrently
+├── routers/                 # FastAPI route handlers
+│   ├── analysis.py
+│   ├── benchmark.py
+│   ├── career.py
+│   ├── data.py
+│   ├── tools.py
+│   └── auth.py
+├── specialized_judges.py    # Judge prompts + LLM calls
+├── ats_checker.py           # ATS heuristic scanner (no LLM)
+├── chunker.py               # Text parsing + prompt formatting
+├── db.py                    # SQLite persistence
+├── frontend/                # React + TypeScript source
+├── scripts/                 # Eval, benchmark, calibration scripts
+├── tests/                   # Unit + adversarial benchmarks
 ├── data/
-│   ├── resumes.csv             # gitignored after initial commit
-│   ├── jobs.csv                # gitignored after initial commit
-│   ├── labels.csv              # gitignored after initial commit
-│   ├── income_paths.json       # 20 income paths for Career Paths tab
-│   ├── skills_taxonomy.json    # skill domain → token mapping
-│   ├── resumes.sample.csv      # format reference
-│   └── jobs.sample.csv         # format reference
-├── tests/
+│   ├── resumes.sample.csv   # Format reference (fake data)
+│   ├── jobs.sample.csv      # Format reference (fake data)
+│   ├── skills_taxonomy.json # Skill domain → token mapping
+│   └── income_paths.json    # 20 income paths
+├── Dockerfile
+├── docker-compose.yml
 ├── requirements.txt
-├── environment.yml
 └── .env.example
 ```
 
 ---
 
-## Scoring internals
+## Setup
 
-The LLM's job is structured extraction, not scoring. Each judge returns a JSON array of labelled items. All arithmetic happens in Python after the LLM responds.
+**1. Clone and configure environment**
 
-**Skills & Experience — partial credit**
-
-```
-score = (present + 0.5 × partial) / total
-```
-
-**Seniority — binary**
-
-```
-score = demonstrated / total
+```bash
+git clone https://github.com/gauri65241-hue/hireable.git
+cd hireable
+cp .env.example .env
+# Add your OpenRouter API key to .env
 ```
 
-**Relevancy — binary**
+**2. Install dependencies**
 
-```
-score = relevant / total
-```
+```bash
+# Conda
+conda env create -f environment.yml
+conda activate hireable
 
-**Impact — three-way**
-
-```
-score = (quantified + 0.5 × directional) / total
-```
-
-**Final weighted score**
-
-```
-overall = skills×0.25 + experience×0.25 + seniority×0.20 + relevancy×0.15 + impact×0.15
+# Or pip
+pip install -r requirements.txt
 ```
 
-Weights are defined in `JUDGE_DEFAULT_WEIGHTS` in `specialized_judges.py`.
+**3. Run**
 
-This two-stage design — LLM extracts and labels, Python scores — means the score is deterministic given the LLM's labels. Inconsistency shows up as label noise, which is easier to debug than an LLM producing a raw number with no audit trail.
+```bash
+uvicorn linkedin_api:app --reload
+```
+
+Open `http://localhost:8000`.
+
+**Or with Docker**
+
+```bash
+docker-compose up --build
+```
 
 ---
 
-## ATS Checker internals
+## API endpoints
 
-Runs 9 heuristic criteria on plain text — no LLM, results in under a second.
+| Endpoint | Description |
+|----------|-------------|
+| `POST /analyze` | Run all 5 judges + coach |
+| `POST /ats-check` | Instant ATS scan, no LLM |
+| `POST /skill-match` | Score against 20 income paths |
+| `POST /edit_resume` | Apply coach → tailored resume |
+| `POST /interview_prep` | Role-specific questions + answers |
+| `GET /list_results` | Saved pipeline results |
+| `POST /fetch-job-url` | Scrape JD from URL |
+| `POST /parse-jd-text` | Parse pasted JD via LLM |
+| `POST /extract-pdf` | Extract + structure PDF resume |
 
-PDF-aware: pypdf and pdfminer strip bullet characters (•, ▪) and can collapse section heading line breaks when extracting text. The checker handles this with:
-- **Section headings**: broad word-presence match + ALL-CAPS line detection (not strict line-boundary regex)
-- **Bullet points**: counts explicit bullet chars AND proxy bullet lines (medium-length lines starting with a capital letter or action verb)
-- **Quantification**: matches numbers with `+` suffix (`12+`, `5,000+`), domain nouns (`metrics`, `datasets`, `tests`), and standard units
+Full docs at `http://localhost:8000/docs`.
 
+---
+
+## Evaluation
+
+```bash
+# Run eval harness against human-labelled ground truth
+python scripts/run_eval.py
+
+# Cohen's Kappa inter-rater agreement
+python scripts/kappa.py
+
+# Model benchmark across judge parse success + discrimination
+python scripts/run_benchmarks.py
+```
+
+---
+
+## Data
+
+Real resume/job data is gitignored. Only fake sample files ship with the repo.
+
+| File | Description |
+|------|-------------|
+| `data/resumes.sample.csv` | Format reference — fake data |
+| `data/jobs.sample.csv` | Format reference — fake data |
+| `data/skills_taxonomy.json` | Skill domain token mapping |
+| `data/income_paths.json` | 20 income paths with required skills |
