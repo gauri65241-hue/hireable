@@ -199,15 +199,16 @@ Numbers from `data/model_benchmark_ollama_real.json` — 8 models, 3 jobs, real 
 
 ### Latency
 
+Measured via `scripts/run_benchmarks.py`, 8 models × 3 real resume/JD pairs, local Ollama on M-series Mac.
+
 | Stage | cogito:14b | qwen2.5:14b | mistral-nemo |
 |-------|-----------|-------------|--------------|
 | ATS check (no LLM) | <1s | <1s | <1s |
-| Per-judge call | 15.3s avg | 16.7s avg | 10.8s avg |
-| 5 judges concurrent | ~16s wall-clock | ~18s wall-clock | ~15s wall-clock |
-| Coach/audit | ~33s | ~42s | ~23s |
-| **End-to-end full analysis** | **~50s** | **~60s** | **~38s** |
+| 5 judges concurrent (wall-clock) | 15.3s avg | 16.7s avg | 10.8s avg |
+| Coach/audit | 32.9s | 41.6s | 22.5s |
+| **End-to-end full analysis** | **~48s** | **~58s** | **~34s** |
 
-`cogito:14b` wins on composite (accuracy × speed): score accuracy 0.80, best overall. `mistral-nemo` is fastest but accuracy drops to 0.30.
+`cogito:14b` best composite score (accuracy 0.80, composite 0.391). `mistral-nemo` is fastest (~34s) but accuracy drops to 0.30 — not usable. `qwen2.5:14b` comparable accuracy to cogito at slightly higher latency.
 
 ### Cost
 
