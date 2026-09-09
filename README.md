@@ -193,6 +193,34 @@ python scripts/run_benchmarks.py
 
 ---
 
+## Cost and latency
+
+Numbers from `data/model_benchmark_ollama_real.json` — 8 models, 3 jobs, real resume/JD pairs, local Ollama on M-series Mac.
+
+### Latency
+
+| Stage | cogito:14b | qwen2.5:14b | mistral-nemo |
+|-------|-----------|-------------|--------------|
+| ATS check (no LLM) | <1s | <1s | <1s |
+| Per-judge call | 15.3s avg | 16.7s avg | 10.8s avg |
+| 5 judges concurrent | ~16s wall-clock | ~18s wall-clock | ~15s wall-clock |
+| Coach/audit | ~33s | ~42s | ~23s |
+| **End-to-end full analysis** | **~50s** | **~60s** | **~38s** |
+
+`cogito:14b` wins on composite (accuracy × speed): score accuracy 0.80, best overall. `mistral-nemo` is fastest but accuracy drops to 0.30.
+
+### Cost
+
+| Setup | Per full analysis | Per ATS-only check |
+|-------|------------------|--------------------|
+| Local Ollama | $0 | $0 |
+| OpenRouter, 14B (e.g. ~$0.20/M in, $0.60/M out) | ~$0.003–0.005 | $0 |
+| OpenRouter, GPT-4o class | ~$0.08–0.15 | $0 |
+
+Token budget per full analysis: ~8k input (5 judges + coach prompts) + ~2k output (structured JSON responses). ATS check is pure heuristic — zero LLM tokens.
+
+---
+
 ## Data
 
 Real resume/job data is gitignored. Only fake sample files ship with the repo.
