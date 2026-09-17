@@ -3,7 +3,11 @@ import logging
 import os
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel
 
 from routers.deps import (
@@ -27,7 +31,8 @@ class EditResumeRequest(BaseModel):
 
 
 @router.post("/interview_prep")
-async def interview_prep(req: InterviewPrepRequest):
+@limiter.limit("5/minute")
+async def interview_prep(request: Request, req: InterviewPrepRequest):
     data = run_db.get_run(req.result_id)
     if not data:
         raise HTTPException(status_code=404, detail=f"Result {req.result_id} not found")
@@ -130,7 +135,8 @@ Generate 8-12 focused questions weighted toward domain gaps. Output the JSON."""
 
 
 @router.post("/edit_resume")
-async def edit_resume(req: EditResumeRequest):
+@limiter.limit("5/minute")
+async def edit_resume(request: Request, req: EditResumeRequest):
     data = run_db.get_run(req.result_id)
     if not data:
         raise HTTPException(status_code=404, detail=f"Result {req.result_id} not found")

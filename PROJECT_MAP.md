@@ -164,6 +164,13 @@ Evaluation harness for judge accuracy and faithfulness audits.
 
 **Run:** `python eval.py`, `python eval.py --faithfulness`, `python eval.py --threshold 0.65`
 
+### `auth_utils.py`
+JWT and password utilities.
+
+**Functions:** `hash_password()`, `verify_password()` (bcrypt via passlib), `create_access_token(user_id, email)` (7-day JWT, HS256), `decode_token()`, `get_current_user()` (FastAPI dependency).
+
+**Secret management:** reads `JWT_SECRET` env var; falls back to auto-generated key persisted in `data/.jwt_secret`.
+
 ### `specialized_judges.py`
 Backward compatibility shim. All logic moved to `analysers/`. Re-exports `SpecializedJudgeEngine`, `calculate_overall_match`, `JUDGE_DEFAULT_WEIGHTS`. New code imports from `analysers/` directly.
 
@@ -231,13 +238,26 @@ Central config singleton `cfg = AnalyserConfig()`. All values env-var overridabl
 | confidence_threshold | 75 | ANALYSER_CONFIDENCE_THRESHOLD |
 | max_retries | 3 | ANALYSER_MAX_RETRIES |
 | skills_gate_threshold | 0.40 | ANALYSER_SKILLS_GATE |
+| default_weights.skills | 0.35 | ANALYSER_WEIGHT_SKILLS |
+| default_weights.experience | 0.30 | ANALYSER_WEIGHT_EXPERIENCE |
+| default_weights.seniority | 0.10 | ANALYSER_WEIGHT_SENIORITY |
+| default_weights.relevancy | 0.15 | ANALYSER_WEIGHT_RELEVANCY |
+| default_weights.impact | 0.10 | ANALYSER_WEIGHT_IMPACT |
 | ollama_semaphore_size | 2 | ANALYSER_OLLAMA_SEM |
 | max_concurrent_analyses | 1 | ANALYSER_MAX_CONCURRENT |
 | sem_acquire_timeout | 3600s | ANALYSER_SEM_TIMEOUT |
 | ollama_base_url | http://127.0.0.1:11434 | OLLAMA_BASE_URL |
-| default_model | deepseek-r1:14b | ANALYSER_DEFAULT_MODEL |
+| default_model | cogito:14b | ANALYSER_DEFAULT_MODEL |
+| fast_model | phi4-mini:latest | ANALYSER_FAST_MODEL |
+| fallback_model | phi4-mini:latest | ANALYSER_FALLBACK_MODEL |
 | max_resume_chars | 20,000 | ANALYSER_MAX_RESUME_CHARS |
 | max_job_description_chars | 10,000 | ANALYSER_MAX_JD_CHARS |
+| openrouter_api_key | "" | OPENROUTER_API_KEY |
+| openrouter_base_url | https://openrouter.ai/api/v1 | OPENROUTER_BASE_URL |
+| openrouter_default_model | meta-llama/llama-3.3-70b-instruct:free | OPENROUTER_DEFAULT_MODEL |
+| openrouter_fast_model | nvidia/nemotron-nano-9b-v2:free | OPENROUTER_FAST_MODEL |
+| two_phase_enabled | false | ANALYSER_TWO_PHASE |
+| min_feedback_samples | 3 | ANALYSER_MIN_FEEDBACK_SAMPLES |
 
 ### `analysers/engine.py`
 `AnalyserEngine` — orchestrates the full 5-judge + coach pipeline.
@@ -423,10 +443,21 @@ Flow: sanitize → acquire semaphore slot → ATS preflight → load taxonomy �
 
 **POST /edit_resume** — applies coach recommendations to resume text. Filters to bullet_rewrites + deletions only (never gap_warnings). Runs ATS check on tailored version. Saves result. Returns tailored text + before/after ATS validation.
 
-### `routers/admin.py`
-**GET /health** — API status, Ollama connectivity (calls /api/tags), DB status, concurrency state. Returns: healthy/degraded + per-service detail.
+### `routers/auth.py`
+User authentication endpoints. Exempt from API key middleware (`/auth/*` is in `_PUBLIC_PATHS`).
 
-**GET /ollama-models** — lists installed Ollama models (excludes embedding models). Returns: models list, default model, error if Ollama is unreachable.
+**POST /auth/register** — validates email + password (min 8 chars), hashes password with bcrypt, generates UUID, issues 7-day JWT. Returns 409 if email already registered.
+
+**POST /auth/login** — verifies email + bcrypt hash, issues JWT.
+
+**GET /auth/me** — returns `{user_id, email}` for authenticated user.
+
+### `routers/admin.py`
+**GET /health** — API status, Ollama connectivity (calls /api/tags), DB status, concurrency state, OpenRouter status. Returns: healthy/degraded + per-service detail including `version: "2.0.0"`, `analyses_in_flight`, and `openrouter_model`/`openrouter_fast_model`.
+
+**GET /ollama-models** — lists installed Ollama models (excludes embedding models by prefix). Returns: models list, default `cogito:14b`, error if Ollama unreachable.
+
+**GET /openrouter-models** — reads `OPENROUTER_MODEL_N` / `OPENROUTER_KEY_N` env var pool. Returns: models list with index, default_model, fast_model, base_url, configured flag.
 
 ### `routers/data.py`
 Resume CRUD: GET /resumes, POST /resumes, DELETE /resumes/{id}
@@ -617,9 +648,64 @@ Dev scratch file (not CI-relevant).
 
 ---
 
+---
+
+## `frontend/` — React Source
+
+**Stack:** React + TypeScript + Vite + Tailwind. Entry: `frontend/src/main.tsx`. Build output: `frontend_dist/` (served by FastAPI or nginx).
+
+**Pages:** `frontend/src/pages/` — Dashboard, Analyzer, History, Settings (and others).
+
+**State:** `frontend/src/store/` — global state. `frontend/src/hooks/` — custom hooks. `frontend/src/lib/` — shared utilities.
+
+**Build:** `npm run build` from `frontend/` → emits to `frontend_dist/`. Vite config: `frontend/vite.config.ts`. Linter: `oxlint` (`.oxlintrc.json`). Styling: Tailwind (`tailwind.config.js` + `postcss.config.js`).
+
+---
+
+## `frontend_dist/` — Built Frontend
+
+Pre-built React SPA served by FastAPI. Contains hashed JS/CSS bundles + `index.html`, `favicon.svg`, `icons.svg`.
+
+---
+
+## `nginx/`
+
+### `nginx/nginx.conf`
+Reverse proxy config for Docker deployment. Routes `/api/*` to FastAPI and all other traffic to the React frontend static build.
+
+---
+
+## `scripts/` — Dev Tools (additional)
+
+### `scripts/batch_score.py`
+Bulk score N JDs against one resume. Reads from SQLite `jobs` table, writes to `runs`.
+
+### `scripts/build_eval_set.py`
+Constructs `data/eval_set.json` from labelled data for correctness eval.
+
+### `scripts/check_calibration.py`
+Checks per-judge bias from `judge_feedback.jsonl` — flags systematically over/under-scoring judges.
+
+### `scripts/eval_compare.py`
+Side-by-side comparison of two eval result files.
+
+### `scripts/eval_llm_judge.py`
+Uses an LLM to evaluate judge reasoning quality (meta-evaluation).
+
+### `scripts/eval_metrics.py`
+Core evaluation metric computation: Spearman, F1, precision, recall, accuracy.
+
+### `scripts/monitor_drift.py`
+Monitors score drift over time by comparing recent runs against baseline distribution.
+
+### `scripts/shadow_eval.py`
+Runs pipeline on eval set in shadow mode (no DB writes) and reports metrics.
+
+---
+
 ## Deployment
 
-**Local:** `ollama pull deepseek-r1:14b && ollama serve` → `uvicorn linkedin_api:app --reload` → open `dashboard.html` at `http://localhost:8000`
+**Local:** `ollama pull cogito:14b && ollama serve` → `uvicorn linkedin_api:app --reload` → open `http://localhost:8000`
 
 **Configurable via env vars:** DB path, Ollama base URL, model selection, semaphore sizes, all scoring thresholds.
 

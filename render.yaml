@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: hireable
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENROUTER_API_KEY
+        sync: false          # set manually in Render dashboard
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: ALLOWED_ORIGINS
+        sync: false          # set to your Render URL, e.g. https://hireable.onrender.com
+      - key: RESUMES_CSV
+        value: data/resumes.sample.csv
+      - key: JOBS_CSV
+        value: data/jobs.sample.csv
+      - key: SKILLS_TAXONOMY
+        value: data/skills_taxonomy.json
+      - key: LABELS_CSV
+        value: data/labels.csv
+    disk:
+      name: hireable-data
+      mountPath: /app/data
+      sizeGB: 1
+    healthCheckPath: /health

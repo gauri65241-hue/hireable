@@ -38,10 +38,10 @@ interface AnalysisResult {
 }
 
 const JUDGES = [
-  { id: 'skills',     label: 'Skills',     weight: '30%', desc: 'Required & optional skills depth' },
-  { id: 'experience', label: 'Experience', weight: '25%', desc: 'Years, projects, company relevance' },
-  { id: 'seniority',  label: 'Seniority',  weight: '15%', desc: 'Career level determination' },
-  { id: 'relevancy',  label: 'Relevancy',  weight: '20%', desc: 'Role alignment & domain fit' },
+  { id: 'skills',     label: 'Skills',     weight: '35%', desc: 'Required & optional skills depth' },
+  { id: 'experience', label: 'Experience', weight: '30%', desc: 'Years, projects, company relevance' },
+  { id: 'seniority',  label: 'Seniority',  weight: '10%', desc: 'Career level determination' },
+  { id: 'relevancy',  label: 'Relevancy',  weight: '15%', desc: 'Role alignment & domain fit' },
   { id: 'impact',     label: 'Impact',     weight: '10%', desc: 'Metrics, ownership, leadership' },
 ]
 

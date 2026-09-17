@@ -52,7 +52,7 @@ The LLM extracts and labels; Python scores. This keeps scoring deterministic and
 | Skills, Experience | `(present + 0.5 × partial) / total` |
 | Seniority, Relevancy | `binary: demonstrated / total` |
 | Impact | `(quantified + 0.5 × directional) / total` |
-| Overall | `skills×0.25 + experience×0.25 + seniority×0.20 + relevancy×0.15 + impact×0.15` |
+| Overall | `skills×0.35 + experience×0.30 + seniority×0.10 + relevancy×0.15 + impact×0.10` |
 
 ### Evaluation harness
 
@@ -75,7 +75,8 @@ Scores resume skills against 20 income paths (full-time, freelance, consulting, 
 | Layer | Technology |
 |-------|-----------|
 | Backend | FastAPI + Uvicorn (async, concurrent judge calls) |
-| LLM provider | OpenRouter (configurable model pool) |
+| LLM providers | Ollama (local, default `cogito:14b`) + OpenRouter (optional API fallback) |
+| Auth | JWT (HS256, 7-day expiry) + bcrypt password hashing |
 | Persistence | SQLite — run history, scores, tailored text |
 | Frontend | React + TypeScript + Vite + Tailwind |
 | Deployment | Docker + docker-compose + nginx |
@@ -150,13 +151,42 @@ pip install -r requirements.txt
 uvicorn linkedin_api:app --reload
 ```
 
-Open `http://localhost:8000`.
-
-**Or with Docker**
+Open `http://localhost:8000`. The React frontend is served at `/` by FastAPI from `frontend_dist/`. To rebuild the frontend after changes:
 
 ```bash
-docker-compose up --build
+cd frontend && npm install && npm run build
 ```
+
+**Or with Docker (local, includes Ollama)**
+
+```bash
+# Copy and fill in your secrets
+cp .env.example .env
+
+# Build and start — first run downloads Ollama + SBERT model (~2 GB)
+docker-compose up --build
+
+# Pull the LLM model into Ollama (one-time)
+docker-compose exec ollama ollama pull llama3.1:8b
+```
+
+Open `http://localhost`.
+
+---
+
+## Deploy to Render
+
+One-service deploy — FastAPI serves both the API and the built React frontend.
+
+1. Fork the repo on GitHub
+2. Create a new **Web Service** on [render.com](https://render.com), connect the repo
+3. Render auto-detects `render.yaml` — review and confirm
+4. Set these environment variables in the Render dashboard:
+   - `OPENROUTER_API_KEY` — your OpenRouter key
+   - `ALLOWED_ORIGINS` — your Render URL, e.g. `https://hireable.onrender.com`
+5. Deploy. First build takes ~5 min (installs deps + pre-warms SBERT)
+
+The `render.yaml` uses the sample data files (`data/*.sample.csv`) by default. To use real data, upload via the Render disk or the `/resumes` and `/jobs` API endpoints.
 
 ---
 
@@ -164,8 +194,12 @@ docker-compose up --build
 
 | Endpoint | Description |
 |----------|-------------|
+| `POST /auth/register` | Create account, return JWT |
+| `POST /auth/login` | Verify credentials, return JWT |
+| `GET /auth/me` | Return current user id + email |
 | `POST /analyze` | Run all 5 judges + coach |
 | `POST /ats-check` | Instant ATS scan, no LLM |
+| `POST /ats-deep-audit` | 4-dimension LLM deep audit |
 | `POST /skill-match` | Score against 20 income paths |
 | `POST /edit_resume` | Apply coach → tailored resume |
 | `POST /interview_prep` | Role-specific questions + answers |
@@ -173,6 +207,12 @@ docker-compose up --build
 | `POST /fetch-job-url` | Scrape JD from URL |
 | `POST /parse-jd-text` | Parse pasted JD via LLM |
 | `POST /extract-pdf` | Extract + structure PDF resume |
+| `GET /health` | API + Ollama + DB status |
+| `GET /ollama-models` | List installed Ollama models |
+| `GET /openrouter-models` | List configured OpenRouter model pool |
+| `POST /benchmark-ollama` | Synthetic Ollama model benchmark |
+| `POST /benchmark-ollama-real` | Real-data Ollama benchmark |
+| `POST /record_outcome` | Log interview/job result for weight learning |
 
 Full docs at `http://localhost:8000/docs`.
 

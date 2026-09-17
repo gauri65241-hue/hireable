@@ -3,6 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from routers.deps import get_llm_api_key, run_db
 from routers import admin, data, analysis, career, tools, benchmark, auth
@@ -23,13 +28,25 @@ async def lifespan(app: FastAPI):
     yield
 
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="hireable API", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _allowed_origins = [
     o.strip()
     for o in os.getenv("ALLOWED_ORIGINS", "*").split(",")
     if o.strip()
 ]
+if "*" in _allowed_origins:
+    import warnings
+    warnings.warn(
+        "ALLOWED_ORIGINS=* with allow_credentials=True is unsafe in production. "
+        "Set ALLOWED_ORIGINS to your frontend domain.",
+        stacklevel=2,
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -88,6 +105,20 @@ app.include_router(analysis.router)
 app.include_router(career.router)
 app.include_router(tools.router)
 app.include_router(benchmark.router)
+
+# Serve React SPA from frontend_dist/ — must come after all API routers
+_FRONTEND = os.path.join(os.path.dirname(__file__), "frontend_dist")
+if os.path.isdir(_FRONTEND):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        # Serve known static files from frontend_dist root
+        candidate = os.path.join(_FRONTEND, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        # All other paths → SPA index.html (client-side routing)
+        return FileResponse(os.path.join(_FRONTEND, "index.html"))
 
 
 if __name__ == "__main__":

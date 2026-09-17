@@ -7,8 +7,12 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel
 
 from auth_utils import get_current_user
@@ -86,7 +90,8 @@ def _truncate_jd(text: str, limit: int = 10_000) -> str:
 
 
 @router.post("/analyze")
-async def analyze_resume_unified(request: AnalyzeRequest,
+@limiter.limit("5/minute")
+async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
                                   current_user: dict = Depends(get_current_user)):
     request = request.model_copy(update={"job_description": _truncate_jd(request.job_description)})
     try:
@@ -240,7 +245,8 @@ async def analyze_resume_unified(request: AnalyzeRequest,
 # ── /analyze/stream ───────────────────────────────────────────────────────────
 
 @router.post("/analyze/stream")
-async def analyze_stream(request: AnalyzeRequest,
+@limiter.limit("5/minute")
+async def analyze_stream(http_request: Request, request: AnalyzeRequest,
                          current_user: dict = Depends(get_current_user)):
     import asyncio as _asyncio
 
@@ -499,7 +505,8 @@ async def analyze_stream(request: AnalyzeRequest,
 # ── /list_results ─────────────────────────────────────────────────────────────
 
 @router.get("/list_results")
-async def list_results(limit: int = 50, offset: int = 0,
+@limiter.limit("60/minute")
+async def list_results(request: Request, limit: int = 50, offset: int = 0,
                        current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
     resume_lookup: dict[str, tuple[str, str]] = {}
@@ -630,7 +637,8 @@ async def list_results(limit: int = 50, offset: int = 0,
 # ── Summarise endpoints ───────────────────────────────────────────────────────
 
 @router.post("/summarize_batch")
-async def summarize_batch(request: BatchSummaryRequest):
+@limiter.limit("10/minute")
+async def summarize_batch(http_request: Request, request: BatchSummaryRequest):
     prompt = f"""You are an executive HR Director. Review this batch of AI resume-to-job match scores:
 {request.batch_data}
 
@@ -650,7 +658,8 @@ IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just pla
 
 
 @router.post("/summarize_candidate")
-async def summarize_candidate(request: CandidateSummaryRequest):
+@limiter.limit("10/minute")
+async def summarize_candidate(http_request: Request, request: CandidateSummaryRequest):
     prompt = f"""Act as an expert Technical Recruiter. Write a punchy, 2-3 sentence summary of this specific candidate's fit for the role.
 
 Candidate: {request.resume_name}
@@ -674,7 +683,8 @@ Highlight their strongest selling point and clearly state their biggest gap. Be 
 
 
 @router.post("/summarize_result")
-async def summarize_result(req: SummarizeResultRequest):
+@limiter.limit("10/minute")
+async def summarize_result(request: Request, req: SummarizeResultRequest):
     run = await asyncio.to_thread(run_db.get_run, req.result_id)
     if not run:
         raise HTTPException(status_code=404, detail="Result not found")
@@ -704,7 +714,8 @@ Job snippet: {(run.get('job_description') or '')[:300]}"""
 # ── Outcome tracking ──────────────────────────────────────────────────────────
 
 @router.post("/record_outcome")
-async def record_outcome(req: RecordOutcomeRequest):
+@limiter.limit("30/minute")
+async def record_outcome(request: Request, req: RecordOutcomeRequest):
     now = datetime.utcnow().isoformat()
     await asyncio.to_thread(
         run_db.save_outcome,
@@ -771,7 +782,8 @@ async def record_outcome(req: RecordOutcomeRequest):
 
 
 @router.get("/outcomes")
-async def get_outcomes():
+@limiter.limit("60/minute")
+async def get_outcomes(request: Request):
     outcomes = await asyncio.to_thread(run_db.get_outcomes_all)
 
     if not outcomes:
@@ -797,7 +809,8 @@ async def get_outcomes():
 # ── Results management ────────────────────────────────────────────────────────
 
 @router.get("/results/{result_id}")
-async def get_result(result_id: str, current_user: dict = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def get_result(request: Request, result_id: str, current_user: dict = Depends(get_current_user)):
     record = await asyncio.to_thread(run_db.get_run, result_id, current_user["user_id"])
     if not record:
         raise HTTPException(status_code=404, detail=f"Result {result_id!r} not found")
@@ -810,7 +823,8 @@ async def get_result(result_id: str, current_user: dict = Depends(get_current_us
 
 
 @router.delete("/results/{result_id}")
-async def delete_result(result_id: str, current_user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def delete_result(request: Request, result_id: str, current_user: dict = Depends(get_current_user)):
     uid = current_user["user_id"]
     def _delete(conn):
         conn.execute("DELETE FROM runs WHERE id=? AND user_id=?", (result_id, uid))
@@ -819,7 +833,8 @@ async def delete_result(result_id: str, current_user: dict = Depends(get_current
 
 
 @router.post("/results/{result_id}/evals")
-async def run_result_evals(result_id: str, req: RunEvalsRequest):
+@limiter.limit("10/minute")
+async def run_result_evals(request: Request, result_id: str, req: RunEvalsRequest):
     record = await asyncio.to_thread(run_db.get_run, result_id)
     if not record:
         raise HTTPException(status_code=404, detail=f"Result {result_id!r} not found")
@@ -851,7 +866,8 @@ async def run_result_evals(result_id: str, req: RunEvalsRequest):
 # ── Calibration / weights ─────────────────────────────────────────────────────
 
 @router.get("/judge_calibration")
-async def judge_calibration():
+@limiter.limit("60/minute")
+async def judge_calibration(request: Request):
     from analysers.weights import FEEDBACK_FILE
     feedback = []
     try:
@@ -887,5 +903,6 @@ async def judge_calibration():
 
 
 @router.get("/judge_weights")
-async def judge_weights():
+@limiter.limit("60/minute")
+async def judge_weights(request: Request):
     return compute_learned_weights()

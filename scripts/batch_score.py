@@ -40,7 +40,6 @@ import argparse
 import asyncio
 import json
 import os
-import sqlite3
 import sys
 import time
 import uuid
@@ -65,7 +64,6 @@ from analysers.semantic import resume_jd_similarity
 from ats_checker import score_ats, ats_to_dict
 import db as run_db
 
-DB_PATH           = ROOT / "data" / "runs.db"
 TAXONOMY_PATH     = ROOT / "data" / "skills_taxonomy.json"
 FAILURE_LOG       = Path("/tmp/batch_parse_failures.log")
 MODEL             = "mistral-nemo:12b-instruct-2407-q4_K_M"
@@ -79,34 +77,56 @@ JAVA_JOB_RANGE    = (1, 12)
 ML_JOB_RANGE      = (13, 31)
 
 
-def load_resume(con: sqlite3.Connection, resume_id: str) -> str:
-    row = con.execute("SELECT text FROM resumes WHERE resume_id=?", (resume_id,)).fetchone()
+def load_resume(resume_id: str) -> str:
+    pool = run_db._get_pool()
+    conn = pool.acquire()
+    try:
+        row = conn.execute("SELECT text FROM resumes WHERE resume_id=?", (resume_id,)).fetchone()
+    finally:
+        pool.release(conn)
     if not row:
         raise RuntimeError(f"Resume not found: {resume_id}")
     return row[0]
 
 
-def load_jobs(con: sqlite3.Connection, lo: int, hi: int) -> list[tuple]:
-    return con.execute(
-        "SELECT job_id, title, description FROM jobs WHERE job_id BETWEEN ? AND ?",
-        (lo, hi),
-    ).fetchall()
+def load_jobs(lo: int, hi: int) -> list[tuple]:
+    pool = run_db._get_pool()
+    conn = pool.acquire()
+    try:
+        rows = conn.execute(
+            "SELECT job_id, title, description FROM jobs WHERE job_id BETWEEN ? AND ?",
+            (lo, hi),
+        ).fetchall()
+    finally:
+        pool.release(conn)
+    return rows
 
 
-def already_scored(con: sqlite3.Connection, job_id: int) -> bool:
-    row = con.execute(
-        "SELECT COUNT(*) FROM runs WHERE job_id=?", (job_id,)
-    ).fetchone()
+def already_scored(job_id: int) -> bool:
+    pool = run_db._get_pool()
+    conn = pool.acquire()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM runs WHERE job_id=?", (job_id,)
+        ).fetchone()
+    finally:
+        pool.release(conn)
     return row[0] > 0
 
 
-def stamp_job_id(con: sqlite3.Connection, run_id: str, job_id: int) -> None:
-    con.execute("UPDATE runs SET job_id=? WHERE id=?", (job_id, run_id))
-    con.commit()
+def stamp_job_id(run_id: str, job_id: int) -> None:
+    run_db._get_pool().execute_tx(
+        lambda c: c.execute("UPDATE runs SET job_id=? WHERE id=?", (job_id, run_id))
+    )
 
 
-def get_user_id(con: sqlite3.Connection) -> str:
-    row = con.execute("SELECT user_id FROM users WHERE email='sniffer@gmail.com'").fetchone()
+def get_user_id() -> str:
+    pool = run_db._get_pool()
+    conn = pool.acquire()
+    try:
+        row = conn.execute("SELECT user_id FROM users WHERE email='sniffer@gmail.com'").fetchone()
+    finally:
+        pool.release(conn)
     return row[0] if row else "batch_runner"
 
 
@@ -165,7 +185,6 @@ async def score_job(
     candidate_name: str,
     job_id: int,
     user_id: str,
-    con: sqlite3.Connection,
 ) -> float | None:
     t0 = time.time()
 
@@ -213,7 +232,7 @@ async def score_job(
         job_title=title,
         user_id=user_id,
     )
-    stamp_job_id(con, run_id, job_id)
+    stamp_job_id(run_id, job_id)
 
     score_str = f"{overall_score:.3f}" if overall_score is not None else "None"
     print(f"  ✓ overall={score_str}  elapsed={elapsed:.0f}s  run_id={run_id[:24]}...")
@@ -222,15 +241,14 @@ async def score_job(
 
 
 async def main(smoke_only: bool = False) -> None:
-    con      = sqlite3.connect(DB_PATH)
-    user_id  = get_user_id(con)
+    user_id  = get_user_id()
     engine   = AnalyserEngine()
 
-    rishabh_resume = load_resume(con, RISHABH_RESUME_ID)
-    gaurica_resume = load_resume(con, GAURICA_RESUME_ID)
+    rishabh_resume = load_resume(RISHABH_RESUME_ID)
+    gaurica_resume = load_resume(GAURICA_RESUME_ID)
 
-    java_jobs = load_jobs(con, *JAVA_JOB_RANGE)
-    ml_jobs   = load_jobs(con, *ML_JOB_RANGE)
+    java_jobs = load_jobs(*JAVA_JOB_RANGE)
+    ml_jobs   = load_jobs(*ML_JOB_RANGE)
 
     batches = [
         (java_jobs, rishabh_resume, "RISHABH RAGHAV"),
@@ -245,7 +263,7 @@ async def main(smoke_only: bool = False) -> None:
     smoke_job_id, smoke_title, smoke_jd = java_jobs[0]
     print(f"\n[SMOKE] job_id={smoke_job_id} '{smoke_title}' (RISHABH RAGHAV) ...")
 
-    if already_scored(con, smoke_job_id):
+    if already_scored(smoke_job_id):
         print(f"  already scored — skipping smoke, check DB for existing result")
     else:
         ats_raw    = await asyncio.to_thread(score_ats, rishabh_resume, smoke_jd)
@@ -285,10 +303,9 @@ async def main(smoke_only: bool = False) -> None:
             job_title=smoke_title,
             user_id=user_id,
         )
-        stamp_job_id(con, run_id, smoke_job_id)
+        stamp_job_id(run_id, smoke_job_id)
 
     if smoke_only:
-        con.close()
         return
 
     # --- FULL BATCH ---
@@ -302,18 +319,17 @@ async def main(smoke_only: bool = False) -> None:
             done += 1
             print(f"[{done}/{total-1}] job_id={job_id} '{title}' ({candidate_name}) ...", flush=True)
 
-            if already_scored(con, job_id):
+            if already_scored(job_id):
                 skipped += 1
                 print(f"  → skipped (already scored)")
                 continue
 
             try:
-                await score_job(engine, resume, description, title, candidate_name, job_id, user_id, con)
+                await score_job(engine, resume, description, title, candidate_name, job_id, user_id)
             except Exception as e:
                 print(f"  ✗ Error: {e}")
                 log_parse_failure(job_id, title, "ENGINE", str(e))
 
-    con.close()
     print(f"\nDone. {done - skipped} scored, {skipped} skipped (already had run).")
     print("Next: python scripts/kappa.py export --jobs 1-12 --out data/kappa_java.csv")
     print("      python scripts/kappa.py export --jobs 13-31 --out data/kappa_ml.csv")

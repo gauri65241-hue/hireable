@@ -4,16 +4,16 @@
     "title": "ML Engineer",
     "category": "tech_fulltime",
     "description": "Build and deploy machine learning models at scale. Design training pipelines, feature stores, and inference infrastructure.",
-    "income_range": {"min": 90000, "max": 200000, "unit": "annual", "display": "$90k–$200k/yr"},
+    "income_range": {"min": 130000, "max": 265000, "unit": "annual", "display": "$130k–$265k/yr"},
     "time_to_first_income": "1–3 months (job search)",
-    "market_demand": "high",
+    "market_demand": "very_high",
     "required_skills": ["python", "machine_learning", "scikit-learn", "sql", "git"],
     "nice_to_have": ["pytorch", "mlops", "docker", "kubernetes", "distributed_systems"],
     "starter_actions": [
-      "Build 2 end-to-end ML projects with public datasets",
-      "Deploy at least one model as a REST API",
-      "Write about your work on LinkedIn or a blog",
-      "Apply to 10–15 companies per week"
+      "Build 2 end-to-end ML projects with public datasets and documented eval metrics",
+      "Deploy at least one model as a REST API with monitoring and drift detection",
+      "Write about ML systems tradeoffs publicly — 2026 market rewards engineers who can explain decisions",
+      "Target companies with production ML teams: senior ML engineer median $193k, staff $240k+"
     ]
   },
   {
@@ -21,16 +21,16 @@
     "title": "AI/LLM Engineer",
     "category": "tech_fulltime",
     "description": "Build LLM-powered products — RAG pipelines, agents, evaluation frameworks, prompt systems. High demand, fast-moving field.",
-    "income_range": {"min": 100000, "max": 220000, "unit": "annual", "display": "$100k–$220k/yr"},
+    "income_range": {"min": 150000, "max": 280000, "unit": "annual", "display": "$150k–$280k/yr"},
     "time_to_first_income": "1–3 months (job search)",
     "market_demand": "very_high",
     "required_skills": ["python", "llm", "langchain", "fastapi", "rag", "prompt_engineering"],
     "nice_to_have": ["fine_tuning", "vector_databases", "mlops", "docker", "evaluation"],
     "starter_actions": [
-      "Build a RAG system with evaluation (RAGAS)",
-      "Open source one LLM tool or agent",
-      "Write about LLM engineering tradeoffs publicly",
-      "Target AI-first companies and Series A–C startups"
+      "Build a RAG system with evaluation framework (not just vibes-testing) — 2026 hiring bars on eval skill",
+      "Open source one LLM agent with observable, measurable behavior",
+      "Specialize in agents or evals — AI Engineer median $206k, agents specialist $175k–$250k",
+      "Target AI-first companies and Series A–C startups; 58% of 2026 job listings require LLM/GenAI skills"
     ]
   },
   {
@@ -157,16 +157,16 @@
     "title": "MLOps / Platform Engineer",
     "category": "tech_fulltime",
     "description": "Own the infrastructure that trains, evaluates, and serves ML models in production. High demand, smaller talent pool than DS/ML.",
-    "income_range": {"min": 95000, "max": 190000, "unit": "annual", "display": "$95k–$190k/yr"},
+    "income_range": {"min": 130000, "max": 220000, "unit": "annual", "display": "$130k–$220k/yr"},
     "time_to_first_income": "1–3 months (job search)",
     "market_demand": "very_high",
     "required_skills": ["python", "docker", "kubernetes", "mlops", "ci_cd"],
     "nice_to_have": ["kubeflow", "mlflow", "terraform", "monitoring"],
     "starter_actions": [
-      "Deploy a model with FastAPI + Docker + CI/CD pipeline",
-      "Add monitoring (data drift, performance degradation)",
-      "Learn MLflow or similar for experiment tracking",
-      "Target companies with existing ML teams but no MLOps"
+      "Deploy a model with FastAPI + Docker + CI/CD pipeline including automated eval gates",
+      "Add monitoring for data drift and model performance degradation — single most undervalued MLOps skill in 2026",
+      "Learn MLflow + observability stack (Prometheus/Grafana) — 63% of 2026 listings require MLOps tooling",
+      "Target companies with existing ML teams but no dedicated MLOps: highest leverage, fastest comp growth"
     ]
   },
   {
@@ -337,6 +337,500 @@
       "Build one reference implementation for that vertical",
       "Price as projects ($5k–$50k) not hourly — better margins",
       "First clients: warm network, local businesses, referrals"
+    ]
+  },
+
+  {
+    "id": "backend_engineer_java",
+    "title": "Backend Engineer (Java/JVM)",
+    "category": "tech_fulltime",
+    "description": "Build server-side systems in Java, Kotlin, or Scala. Enterprise-heavy stack — banking, e-commerce, logistics. Deep experience commands premium rates.",
+    "income_range": {"min": 80000, "max": 180000, "unit": "annual", "display": "$80k–$180k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["java", "spring-boot", "sql", "rest-api", "git"],
+    "nice_to_have": ["kotlin", "kafka", "microservices", "docker", "kubernetes"],
+    "starter_actions": [
+      "Build a REST API with Spring Boot, Postgres, and Docker",
+      "Learn system design — it dominates Java interview loops",
+      "Contribute to an OSS Java project to demonstrate initiative",
+      "Target fintech, e-commerce, and enterprise SaaS — biggest Java hirers"
+    ]
+  },
+  {
+    "id": "backend_engineer_python",
+    "title": "Backend Engineer (Python/Go)",
+    "category": "tech_fulltime",
+    "description": "Build APIs, microservices, and backend systems in Python or Go. High demand at startups and mid-size tech companies.",
+    "income_range": {"min": 85000, "max": 190000, "unit": "annual", "display": "$85k–$190k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["python", "fastapi", "postgresql", "sql", "docker"],
+    "nice_to_have": ["go", "redis", "kafka", "kubernetes", "ci_cd"],
+    "starter_actions": [
+      "Build a production-grade API: auth, rate limiting, async tasks, tests",
+      "Contribute to a Python OSS project (FastAPI, SQLModel, etc.)",
+      "Deploy on Railway or Render first — cloud fundamentals matter",
+      "Python + Go combined is rare and very marketable"
+    ]
+  },
+  {
+    "id": "backend_engineer_node",
+    "title": "Backend Engineer (Node.js/TypeScript)",
+    "category": "tech_fulltime",
+    "description": "Build APIs and real-time systems in Node.js with TypeScript. Dominant at SaaS startups and frontend-heavy product teams.",
+    "income_range": {"min": 75000, "max": 170000, "unit": "annual", "display": "$75k–$170k/yr"},
+    "time_to_first_income": "1–2 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["javascript", "typescript", "node", "rest-api", "postgresql"],
+    "nice_to_have": ["graphql", "redis", "prisma", "docker", "aws"],
+    "starter_actions": [
+      "Build a full-stack app: Next.js frontend + Node backend + Postgres",
+      "Master TypeScript — untyped Node.js is a red flag to senior engineers",
+      "Learn async patterns deeply: event loop, streams, worker threads",
+      "Target startups with React frontends — they almost always want Node"
+    ]
+  },
+  {
+    "id": "frontend_engineer",
+    "title": "Frontend Engineer",
+    "category": "tech_fulltime",
+    "description": "Build user interfaces with React, Vue, or Angular. Own the browser experience — performance, accessibility, design systems.",
+    "income_range": {"min": 70000, "max": 170000, "unit": "annual", "display": "$70k–$170k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["javascript", "typescript", "react", "html", "css"],
+    "nice_to_have": ["next-js", "vue", "tailwind", "testing", "web-performance"],
+    "starter_actions": [
+      "Build 2 polished projects with React + TypeScript — design matters",
+      "Learn accessibility basics — it differentiates you from 80% of candidates",
+      "Master React internals: reconciliation, hooks, rendering patterns",
+      "Create a personal site that showcases work quality, not just lists projects"
+    ]
+  },
+  {
+    "id": "fullstack_engineer",
+    "title": "Full-Stack Engineer",
+    "category": "tech_fulltime",
+    "description": "Own the entire product surface — frontend UI and backend API. High leverage at startups where one engineer can ship a feature end to end.",
+    "income_range": {"min": 80000, "max": 185000, "unit": "annual", "display": "$80k–$185k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["javascript", "typescript", "react", "node", "postgresql"],
+    "nice_to_have": ["next-js", "docker", "aws", "redis", "ci_cd"],
+    "starter_actions": [
+      "Ship one complete product: auth, database, UI, deployment",
+      "Next.js + Postgres + Vercel/Railway is the fastest path to full-stack credibility",
+      "Target Series A–C startups: they need full-stack engineers most",
+      "Breadth is your pitch — show you can own a feature from design to prod"
+    ]
+  },
+  {
+    "id": "devops_sre",
+    "title": "DevOps / Site Reliability Engineer",
+    "category": "tech_fulltime",
+    "description": "Own infrastructure reliability, CI/CD pipelines, and developer productivity. SRE roles at larger companies carry strong comp and high impact.",
+    "income_range": {"min": 90000, "max": 200000, "unit": "annual", "display": "$90k–$200k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["docker", "kubernetes", "terraform", "ci_cd", "linux"],
+    "nice_to_have": ["aws", "grafana", "prometheus", "ansible", "python"],
+    "starter_actions": [
+      "Get AWS Solutions Architect Associate certification — it's a baseline signal",
+      "Build a full CI/CD pipeline: code → test → build → deploy → monitor",
+      "Learn Kubernetes properly: deployments, services, ingress, resource limits",
+      "SRE roles need coding too — solid Python or Go scripting is expected"
+    ]
+  },
+  {
+    "id": "cloud_architect",
+    "title": "Cloud Architect",
+    "category": "tech_fulltime",
+    "description": "Design large-scale cloud infrastructure for cost, reliability, and security. Senior-level role — typically 7+ years experience, strong comp.",
+    "income_range": {"min": 130000, "max": 260000, "unit": "annual", "display": "$130k–$260k/yr"},
+    "time_to_first_income": "2–4 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["aws", "terraform", "kubernetes", "system_design", "networking"],
+    "nice_to_have": ["gcp", "azure", "security", "cost_optimization", "multi_cloud"],
+    "starter_actions": [
+      "Earn AWS Solutions Architect Professional or Google Cloud Professional",
+      "Design and document a multi-region, fault-tolerant architecture end-to-end",
+      "Specialise in one vertical (fintech compliance, healthcare HIPAA, enterprise)",
+      "Architect roles rarely hire externally — build internally first, then move"
+    ]
+  },
+  {
+    "id": "mobile_engineer_ios",
+    "title": "iOS Mobile Engineer",
+    "category": "tech_fulltime",
+    "description": "Build native iOS applications in Swift. Consumer apps, fintech, health, and enterprise mobility are the biggest markets.",
+    "income_range": {"min": 80000, "max": 185000, "unit": "annual", "display": "$80k–$185k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["swift", "swiftui", "xcode", "ios", "rest-api"],
+    "nice_to_have": ["combine", "core-data", "objective-c", "app-store-publishing", "animations"],
+    "starter_actions": [
+      "Publish one app to the App Store — the release process alone is a signal",
+      "Learn SwiftUI thoroughly — it is now the default UI framework",
+      "Study Human Interface Guidelines: Apple rejects apps that ignore them",
+      "Target companies with existing iOS apps over greenfield builds"
+    ]
+  },
+  {
+    "id": "mobile_engineer_android",
+    "title": "Android Mobile Engineer",
+    "category": "tech_fulltime",
+    "description": "Build native Android applications in Kotlin. Larger global market share than iOS; strong demand in fintech, emerging markets, and enterprise.",
+    "income_range": {"min": 75000, "max": 175000, "unit": "annual", "display": "$75k–$175k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["kotlin", "android", "jetpack-compose", "android-studio", "rest-api"],
+    "nice_to_have": ["room", "coroutines", "mvvm", "firebase", "play-store-publishing"],
+    "starter_actions": [
+      "Publish one app to Google Play — cover the full release cycle",
+      "Learn Jetpack Compose: XML layouts are becoming legacy",
+      "Build a multi-screen app with real data, offline support, and MVVM architecture",
+      "Android hiring is strong in fintech and logistics — target those sectors"
+    ]
+  },
+  {
+    "id": "security_engineer",
+    "title": "Security Engineer",
+    "category": "tech_fulltime",
+    "description": "Protect systems from vulnerabilities, design secure architectures, run penetration tests, and respond to incidents. One of the highest comp-per-year-experience roles in tech.",
+    "income_range": {"min": 95000, "max": 220000, "unit": "annual", "display": "$95k–$220k/yr"},
+    "time_to_first_income": "2–4 months (certifications + job search)",
+    "market_demand": "very_high",
+    "required_skills": ["networking", "linux", "python", "security_fundamentals", "vulnerability_assessment"],
+    "nice_to_have": ["penetration_testing", "cloud_security", "siem", "soc", "certifications"],
+    "starter_actions": [
+      "Earn CompTIA Security+ then OSCP — the pair opens most doors",
+      "Practice on HackTheBox or TryHackMe before applying",
+      "Build a home lab: Kali Linux, vulnerable VMs, network monitoring",
+      "AppSec and cloud security pay more than traditional network security"
+    ]
+  },
+  {
+    "id": "qa_engineer",
+    "title": "QA / Test Automation Engineer",
+    "category": "tech_fulltime",
+    "description": "Own software quality through automated tests, CI integration, and performance testing. Underrated — companies that ship fast need serious QA.",
+    "income_range": {"min": 65000, "max": 140000, "unit": "annual", "display": "$65k–$140k/yr"},
+    "time_to_first_income": "1–2 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "selenium", "pytest", "ci_cd", "api_testing"],
+    "nice_to_have": ["playwright", "cypress", "performance_testing", "load_testing", "java"],
+    "starter_actions": [
+      "Build a full automation suite for an open-source web app",
+      "Learn Playwright — it has largely replaced Selenium for web UI testing",
+      "Add performance testing (k6, Locust) to your skillset — high demand",
+      "Move toward SDET (Software Dev in Test) for better comp and scope"
+    ]
+  },
+  {
+    "id": "database_engineer",
+    "title": "Database Engineer / DBA",
+    "category": "tech_fulltime",
+    "description": "Design, optimise, and operate databases at scale. Query tuning, schema design, replication, and disaster recovery. Critical at data-heavy companies.",
+    "income_range": {"min": 80000, "max": 165000, "unit": "annual", "display": "$80k–$165k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "medium",
+    "required_skills": ["postgresql", "sql", "indexing", "query_optimization", "backup_recovery"],
+    "nice_to_have": ["mysql", "mongodb", "redis", "elasticsearch", "data_modeling"],
+    "starter_actions": [
+      "Master query optimization: EXPLAIN ANALYZE, index strategies, partitioning",
+      "Set up a Postgres HA cluster with streaming replication from scratch",
+      "Learn one NoSQL store deeply (Mongo or Redis) — most stacks use both",
+      "Database skills age well — not subject to framework churn"
+    ]
+  },
+  {
+    "id": "technical_writer",
+    "title": "Technical Writer / Documentation Engineer",
+    "category": "tech_fulltime",
+    "description": "Write and maintain developer documentation, API references, tutorials, and internal runbooks. High-value role at developer-tools companies.",
+    "income_range": {"min": 60000, "max": 140000, "unit": "annual", "display": "$60k–$140k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "medium",
+    "required_skills": ["technical_writing", "documentation", "markdown", "api_understanding", "communication"],
+    "nice_to_have": ["python", "rest-api", "docs-as-code", "developer_empathy", "seo"],
+    "starter_actions": [
+      "Contribute docs improvements to one OSS project — merge is the portfolio",
+      "Pick a poorly documented API, rewrite its getting-started guide, publish it",
+      "Learn docs-as-code: Git, Markdown, static site generators (Docusaurus, MkDocs)",
+      "Target developer-tools companies — Stripe, Twilio, Vercel are benchmarks"
+    ]
+  },
+  {
+    "id": "business_analyst",
+    "title": "Business Analyst / Systems Analyst",
+    "category": "tech_fulltime",
+    "description": "Bridge business requirements and technical implementation. Define specs, map processes, and validate that software solves the right problems.",
+    "income_range": {"min": 60000, "max": 120000, "unit": "annual", "display": "$60k–$120k/yr"},
+    "time_to_first_income": "1–2 months (job search)",
+    "market_demand": "medium",
+    "required_skills": ["requirements_gathering", "process_mapping", "sql", "communication", "stakeholder_management"],
+    "nice_to_have": ["jira", "confluence", "data_analysis", "excel", "agile"],
+    "starter_actions": [
+      "Document a complex business process end-to-end using BPMN",
+      "Learn SQL to query data yourself — reduces dependency on engineers",
+      "Earn CBAP or PMI-PBA if targeting enterprise clients",
+      "BA roles are an underrated entry point for product management transitions"
+    ]
+  },
+  {
+    "id": "product_manager",
+    "title": "Product Manager",
+    "category": "tech_fulltime",
+    "description": "Define what to build and why. Own the product roadmap, user research, and success metrics. One of the highest-leverage individual contributor roles in tech.",
+    "income_range": {"min": 85000, "max": 190000, "unit": "annual", "display": "$85k–$190k/yr"},
+    "time_to_first_income": "2–5 months (job search + transition)",
+    "market_demand": "high",
+    "required_skills": ["product_thinking", "user_research", "stakeholder_management", "communication", "data_analysis"],
+    "nice_to_have": ["sql", "agile", "figma", "a_b_testing", "roadmapping"],
+    "starter_actions": [
+      "Write 3 product teardowns of apps you use — publish them",
+      "Complete one product design challenge from a public case bank",
+      "Learn SQL to pull your own data — it removes the biggest PM bottleneck",
+      "Internal transfer is often faster than external hiring for PM roles"
+    ]
+  },
+  {
+    "id": "solutions_engineer",
+    "title": "Solutions Engineer / Sales Engineer",
+    "category": "tech_fulltime",
+    "description": "Own the technical side of sales: demos, integrations, proofs of concept, and customer onboarding. Combine engineering depth with commercial awareness.",
+    "income_range": {"min": 90000, "max": 200000, "unit": "annual", "display": "$90k–$200k/yr (base + commission)"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["communication", "api_understanding", "python", "presentation", "customer_empathy"],
+    "nice_to_have": ["sql", "rest-api", "crm", "product_knowledge", "sales_process"],
+    "starter_actions": [
+      "Practice giving live product demos — record and review yourself",
+      "Learn the full sales cycle: discovery, demo, POC, negotiation, close",
+      "Target B2B SaaS — SE roles are almost exclusively enterprise software",
+      "High OTE with commission: negotiate base + variable carefully"
+    ]
+  },
+  {
+    "id": "agile_coach",
+    "title": "Scrum Master / Agile Coach",
+    "category": "tech_fulltime",
+    "description": "Facilitate agile delivery, remove impediments, and coach engineering teams on process. More valuable at scale than at startups.",
+    "income_range": {"min": 70000, "max": 140000, "unit": "annual", "display": "$70k–$140k/yr"},
+    "time_to_first_income": "1–3 months (certification + job search)",
+    "market_demand": "medium",
+    "required_skills": ["agile", "scrum", "facilitation", "communication", "coaching"],
+    "nice_to_have": ["kanban", "safe", "jira", "stakeholder_management", "conflict_resolution"],
+    "starter_actions": [
+      "Get Certified ScrumMaster (CSM) or PSM I — table stakes for the role",
+      "Volunteer to run a sprint retrospective at your current team",
+      "Learn SAFe if targeting large enterprise — it dominates that market",
+      "Agile coaching pays more than Scrum Master — build toward it"
+    ]
+  },
+  {
+    "id": "fintech_engineer",
+    "title": "Fintech / Payments Engineer",
+    "category": "tech_fulltime",
+    "description": "Build financial infrastructure — payments, ledgers, compliance systems, and trading platforms. High stakes, high comp, strong demand.",
+    "income_range": {"min": 100000, "max": 230000, "unit": "annual", "display": "$100k–$230k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "very_high",
+    "required_skills": ["java", "python", "sql", "rest-api", "system_design"],
+    "nice_to_have": ["kafka", "distributed_systems", "compliance", "encryption", "real_time_processing"],
+    "starter_actions": [
+      "Learn double-entry bookkeeping — it underpins every financial system",
+      "Build a simple payments API with Stripe — understand webhooks, idempotency, retries",
+      "Study PCI-DSS basics — knowing compliance requirements is a differentiator",
+      "Fintech companies pay 10–20% above market for engineers who understand money"
+    ]
+  },
+  {
+    "id": "healthtech_engineer",
+    "title": "Healthcare Tech / Digital Health Engineer",
+    "category": "tech_fulltime",
+    "description": "Build clinical software, patient data systems, and health AI applications. HIPAA compliance and interoperability (FHIR/HL7) expertise commands premium.",
+    "income_range": {"min": 90000, "max": 200000, "unit": "annual", "display": "$90k–$200k/yr"},
+    "time_to_first_income": "1–4 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "rest-api", "sql", "system_design", "security_fundamentals"],
+    "nice_to_have": ["fhir", "hl7", "hipaa", "ehr_integration", "machine_learning"],
+    "starter_actions": [
+      "Learn FHIR R4 standard — it is the interoperability baseline across US healthcare",
+      "Understand HIPAA minimum necessary, BAAs, and audit logging requirements",
+      "Build a FHIR server integration as a portfolio project",
+      "Target telehealth, clinical decision support, and remote monitoring companies"
+    ]
+  },
+  {
+    "id": "legaltech_engineer",
+    "title": "Legal Tech Engineer",
+    "category": "tech_fulltime",
+    "description": "Build software for law firms and legal departments — contract analysis, e-discovery, compliance automation. Niche but growing fast with LLMs.",
+    "income_range": {"min": 90000, "max": 190000, "unit": "annual", "display": "$90k–$190k/yr"},
+    "time_to_first_income": "1–4 months (job search)",
+    "market_demand": "medium",
+    "required_skills": ["python", "llm", "rest-api", "sql", "nlp"],
+    "nice_to_have": ["document_parsing", "rag", "compliance", "contract_analysis", "legal_domain_knowledge"],
+    "starter_actions": [
+      "Build a contract clause extractor using an LLM + structured output",
+      "Learn the basics of legal document structure: contracts, NDAs, MSAs",
+      "Target LegalZoom, Clio, Thomson Reuters, or VC-backed legal AI startups",
+      "Legal AI is still underbuilt — domain knowledge + engineering is rare and valuable"
+    ]
+  },
+  {
+    "id": "supply_chain_engineer",
+    "title": "Supply Chain / Logistics Tech Engineer",
+    "category": "tech_fulltime",
+    "description": "Build systems for inventory, demand forecasting, route optimisation, and warehouse management. Less glamorous than consumer tech; significantly more defensible.",
+    "income_range": {"min": 85000, "max": 175000, "unit": "annual", "display": "$85k–$175k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "high",
+    "required_skills": ["python", "sql", "optimization", "rest-api", "system_design"],
+    "nice_to_have": ["operations_research", "machine_learning", "erp", "kafka", "demand_forecasting"],
+    "starter_actions": [
+      "Build a simple demand forecasting model on public retail data",
+      "Learn the basics of ERP systems (SAP, Oracle) — enterprise logistics runs on them",
+      "Study vehicle routing problems (VRP) and linear programming basics",
+      "Amazon, DHL, Flexport, and retail giants are constant hiring supply chain engineers"
+    ]
+  },
+  {
+    "id": "backend_freelancer",
+    "title": "Backend Freelancer / Contract Engineer",
+    "category": "freelance",
+    "description": "Take contract work building APIs, services, and integrations for startups and SMBs. Higher rate than full-time, but you manage your own pipeline.",
+    "income_range": {"min": 80, "max": 200, "unit": "hourly", "display": "$80–$200/hr"},
+    "time_to_first_income": "2–6 weeks (first client)",
+    "market_demand": "high",
+    "required_skills": ["python", "rest-api", "postgresql", "docker", "client_communication"],
+    "nice_to_have": ["fastapi", "node", "go", "proposal_writing", "project_management"],
+    "starter_actions": [
+      "Niche immediately: 'Python backend' is too broad; 'FastAPI + Postgres for SaaS startups' gets replies",
+      "Create case studies for 2–3 past projects framed as business outcomes",
+      "Set a weekly floor: 10 outreach messages minimum until pipeline is full",
+      "Charge a project minimum ($3k–5k) to filter time-wasters"
+    ]
+  },
+  {
+    "id": "frontend_freelancer",
+    "title": "Frontend Freelancer / UI Developer",
+    "category": "freelance",
+    "description": "Build UIs and frontend features for clients on a contract basis. React dominates; Tailwind and Next.js are increasingly expected.",
+    "income_range": {"min": 60, "max": 160, "unit": "hourly", "display": "$60–$160/hr"},
+    "time_to_first_income": "1–4 weeks (first client)",
+    "market_demand": "high",
+    "required_skills": ["react", "typescript", "javascript", "html", "css"],
+    "nice_to_have": ["next-js", "tailwind", "figma", "animations", "cms_integration"],
+    "starter_actions": [
+      "Build 3 polished UI projects with live demos — design quality matters",
+      "Offer a 'Design to Code' service: take Figma mockups and implement them exactly",
+      "List on Contra, Toptal, or Crew — frontend freelancers get hired faster than backend",
+      "Add motion design (Framer Motion) to your stack — it triples your rate ceiling"
+    ]
+  },
+  {
+    "id": "devops_freelancer",
+    "title": "DevOps / Cloud Freelancer",
+    "category": "freelance",
+    "description": "Help companies set up infrastructure, CI/CD pipelines, cloud migrations, and Kubernetes clusters on a contract basis. High-value, recurring engagements.",
+    "income_range": {"min": 100, "max": 250, "unit": "hourly", "display": "$100–$250/hr"},
+    "time_to_first_income": "2–6 weeks (first client)",
+    "market_demand": "high",
+    "required_skills": ["terraform", "kubernetes", "aws", "docker", "ci_cd"],
+    "nice_to_have": ["ansible", "grafana", "cost_optimization", "security", "linux"],
+    "starter_actions": [
+      "Package as a fixed-scope offering: 'AWS production setup' or 'K8s migration'",
+      "Get AWS Solutions Architect certified — clients use it as a trust signal",
+      "Cloud cost audits are quick wins: find savings, charge 10% of first year savings",
+      "DevOps freelancers are rare relative to demand — charge accordingly"
+    ]
+  },
+  {
+    "id": "software_consultant",
+    "title": "Independent Software Consultant",
+    "category": "freelance",
+    "description": "Advise companies on technical architecture, team structure, technology choices, and delivery process. Senior ICs and ex-CTO types. No code required — judgment is the product.",
+    "income_range": {"min": 150, "max": 500, "unit": "hourly", "display": "$150–$500/hr"},
+    "time_to_first_income": "1–3 months (client acquisition)",
+    "market_demand": "medium",
+    "required_skills": ["system_design", "communication", "technical_leadership", "business_analysis", "stakeholder_management"],
+    "nice_to_have": ["cloud_architecture", "team_management", "proposal_writing", "domain_expertise"],
+    "starter_actions": [
+      "Define one specific engagement type: tech debt audit, architecture review, CTO-for-hire",
+      "Write 5 posts on engineering decisions — this is your consulting signal",
+      "First clients come from past colleagues and warm referrals — start there",
+      "Retainer model beats project billing: pitch a monthly advisory engagement"
+    ]
+  },
+  {
+    "id": "hr_tech_specialist",
+    "title": "HR Tech / People Ops Specialist",
+    "category": "tech_fulltime",
+    "description": "Implement, configure, and optimise HRIS platforms (Workday, Rippling, BambooHR). Intersection of HR domain knowledge and technical configuration skill.",
+    "income_range": {"min": 60000, "max": 120000, "unit": "annual", "display": "$60k–$120k/yr"},
+    "time_to_first_income": "1–3 months (job search)",
+    "market_demand": "medium",
+    "required_skills": ["hris", "people_ops", "data_analysis", "excel", "communication"],
+    "nice_to_have": ["workday", "bamboohr", "rippling", "sql", "automation"],
+    "starter_actions": [
+      "Get Workday HCM or Rippling certified — vendor certs open doors fast",
+      "Learn to query HRIS APIs — most HR teams have zero technical depth",
+      "Target hyper-growth startups: they are overwhelmed with people-ops tooling",
+      "People analytics (Visier, ChartHop) is the premium tier — build toward it"
+    ]
+  },
+  {
+    "id": "technical_recruiter",
+    "title": "Technical Recruiter",
+    "category": "freelance",
+    "description": "Source and place software engineers. Commission-based. Technical background — even adjacent — gives you a significant edge over non-technical recruiters.",
+    "income_range": {"min": 60000, "max": 200000, "unit": "annual", "display": "$60k–$200k/yr (commission)"},
+    "time_to_first_income": "2–4 months (first placement)",
+    "market_demand": "medium",
+    "required_skills": ["communication", "networking", "sourcing", "sales", "technical_screening"],
+    "nice_to_have": ["linkedin_recruiter", "greenhouse", "boolean_search", "negotiation", "employer_branding"],
+    "starter_actions": [
+      "Join an established agency first — solo recruiting without a track record is hard",
+      "Build a candidate pipeline in one niche before going broad",
+      "Standard contingency fee: 15–20% first-year salary",
+      "Technical credibility means you can have real conversations with engineers — use it"
+    ]
+  },
+  {
+    "id": "software_saas_founder",
+    "title": "Software SaaS Founder (non-AI)",
+    "category": "entrepreneurship",
+    "description": "Build a vertical SaaS product for a specific industry or workflow. Slower growth than AI tools but more defensible with deep domain fit.",
+    "income_range": {"min": 0, "max": 500000, "unit": "annual", "display": "$0–$500k+ (highly variable)"},
+    "time_to_first_income": "3–12 months",
+    "market_demand": "medium",
+    "required_skills": ["fullstack", "product_thinking", "customer_development", "marketing", "sales"],
+    "nice_to_have": ["domain_expertise", "seo", "email_marketing", "stripe_integration"],
+    "starter_actions": [
+      "Start with a problem you have personally — founder-market fit matters",
+      "Talk to 20 potential customers before writing one line of code",
+      "Smallest possible scope: if it doesn't sell with 3 features, more won't help",
+      "B2B SaaS: charge more than you think, invoice annually, never go freemium first"
+    ]
+  },
+  {
+    "id": "dev_course_creator",
+    "title": "Software Engineering Course Creator",
+    "category": "creator",
+    "description": "Teach system design, backend, frontend, or DevOps through video courses, newsletters, or bootcamps. Passive income at scale.",
+    "income_range": {"min": 10000, "max": 200000, "unit": "annual", "display": "$10k–$200k/yr"},
+    "time_to_first_income": "3–9 months (course build + launch)",
+    "market_demand": "medium",
+    "required_skills": ["teaching", "technical_writing", "communication", "curriculum_design", "software_engineering"],
+    "nice_to_have": ["video_production", "audience", "seo", "marketing"],
+    "starter_actions": [
+      "Pick ONE topic: system design interviews, FastAPI, React — not all of them",
+      "Launch with a paid cohort before recording async video",
+      "YouTube short-form builds audience fastest — 1 video per week minimum",
+      "Gumroad or Lemon Squeezy for selling: avoid Udemy's race to the bottom"
     ]
   }
 ]

@@ -3,7 +3,11 @@ import logging
 import os
 import re
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel, field_validator
 from typing import Literal
 
@@ -162,7 +166,8 @@ def _skill_matched(skill: str, resume_tokens: set[str]) -> bool:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/client-config")
-async def client_config():
+@limiter.limit("60/minute")
+async def client_config(request: Request):
     """Expose non-secret UI defaults so the frontend can pre-fill provider/model/key."""
     return {
         "api_key": "",
@@ -172,13 +177,15 @@ async def client_config():
 
 
 @router.post("/ats-check")
-async def ats_check(req: AtsCheckRequest):
+@limiter.limit("20/minute")
+async def ats_check(request: Request, req: AtsCheckRequest):
     result = score_ats(req.resume_text, req.job_description)
     return ats_to_dict(result)
 
 
 @router.post("/ats-deep-audit")
-async def ats_deep_audit(req: AtsDeepAuditRequest):
+@limiter.limit("10/minute")
+async def ats_deep_audit(request: Request, req: AtsDeepAuditRequest):
     from analysers.base import call_llm_async, parse_and_validate
     from routers.deps import get_llm_api_key, get_free_model
 
@@ -246,7 +253,8 @@ Scoring rules:
 
 
 @router.post("/skill-match")
-async def skill_match(req: SkillMatchRequest):
+@limiter.limit("20/minute")
+async def skill_match(request: Request, req: SkillMatchRequest):
     paths = _load_income_paths()
     resume_tokens = _extract_resume_skill_tokens(req.resume_text)
 
@@ -285,7 +293,8 @@ async def skill_match(req: SkillMatchRequest):
 
 
 @router.post("/extract-pdf")
-async def extract_pdf(file: UploadFile = File(...)):
+@limiter.limit("30/minute")
+async def extract_pdf(request: Request, file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
@@ -487,7 +496,8 @@ Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
 
 
 @router.post("/fetch-job-url")
-async def fetch_job_url(req: FetchJobURLRequest):
+@limiter.limit("30/minute")
+async def fetch_job_url(request: Request, req: FetchJobURLRequest):
     import httpx
     from bs4 import BeautifulSoup
 
@@ -794,7 +804,8 @@ Return exactly: {{"title": "...", "company": "...", "experience_required": "..."
 
 
 @router.post("/parse-jd-text")
-async def parse_jd_text(req: ParseJDTextRequest):
+@limiter.limit("30/minute")
+async def parse_jd_text(request: Request, req: ParseJDTextRequest):
     raw_text   = req.text.strip()[:15000]
     structured = {"title": "", "company": "", "experience_required": "", "skills_required": "", "job_description": raw_text}
     try:
