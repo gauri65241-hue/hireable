@@ -493,7 +493,7 @@ class AnalyserEngine:
     async def run_skills_judge(self, resume_text: str, job_description: str, llm_model: str,
                                skills_taxonomy: dict | None = None, api_key: str = "", api_base_url: str = "") -> dict:
         from analysers.skills.analyser import score as _score
-        status, raw, _, err = await _run_judge_timed(
+        status, raw, _, err, _ = await _run_judge_timed(
             "skills",
             self.skills.run(resume_text, job_description, llm_model=llm_model,
                             skills_taxonomy=skills_taxonomy, api_key=api_key, api_base_url=api_base_url),
@@ -504,7 +504,7 @@ class AnalyserEngine:
     async def run_experience_judge(self, resume_text: str, job_description: str, llm_model: str,
                                    api_key: str = "", api_base_url: str = "") -> dict:
         from analysers.experience.analyser import score as _score
-        status, raw, _, err = await _run_judge_timed(
+        status, raw, _, err, _ = await _run_judge_timed(
             "experience",
             self.experience.run(resume_text, job_description, llm_model=llm_model,
                                 api_key=api_key, api_base_url=api_base_url),
@@ -515,7 +515,7 @@ class AnalyserEngine:
     async def run_seniority_judge(self, resume_text: str, job_description: str, llm_model: str,
                                   api_key: str = "", api_base_url: str = "") -> dict:
         from analysers.seniority.analyser import score as _score
-        status, raw, _, err = await _run_judge_timed(
+        status, raw, _, err, _ = await _run_judge_timed(
             "seniority",
             self.seniority.run(resume_text, job_description, llm_model=llm_model,
                                api_key=api_key, api_base_url=api_base_url),
@@ -526,7 +526,7 @@ class AnalyserEngine:
     async def run_relevancy_judge(self, resume_text: str, job_description: str, llm_model: str,
                                   api_key: str = "", api_base_url: str = "") -> dict:
         from analysers.relevancy.analyser import score as _score
-        status, raw, _, err = await _run_judge_timed(
+        status, raw, _, err, _ = await _run_judge_timed(
             "relevancy",
             self.relevancy.run(resume_text, job_description, llm_model=llm_model,
                                api_key=api_key, api_base_url=api_base_url),
@@ -538,7 +538,7 @@ class AnalyserEngine:
                                job_description: str = "",
                                api_key: str = "", api_base_url: str = "") -> dict:
         from analysers.impact.analyser import score as _score
-        status, raw, _, err = await _run_judge_timed(
+        status, raw, _, err, _ = await _run_judge_timed(
             "impact",
             self.impact.run(resume_text, job_description, llm_model=llm_model,
                             api_key=api_key, api_base_url=api_base_url),
