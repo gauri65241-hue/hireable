@@ -1,15 +1,4 @@
-# ── Stage 1: Build React frontend ─────────────────────────────────────────────
-FROM node:22-slim AS frontend-builder
-
-WORKDIR /frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-# Output lands in /frontend/dist (vite.config outDir: 'dist')
-
-
-# ── Stage 2: Python API ────────────────────────────────────────────────────────
+# ── Python API ────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -28,9 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install chromium
 
 COPY . .
-
-# Copy built frontend from stage 1
-COPY --from=frontend-builder /frontend/dist ./frontend_dist
+# Frontend pre-built locally and committed — copy to the path the API expects
+COPY frontend/dist ./frontend_dist
 
 # Pre-warm SBERT model so first analysis request doesn't block 30s
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
