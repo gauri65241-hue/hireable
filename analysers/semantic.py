@@ -22,7 +22,11 @@ def resume_jd_similarity(resume_text: str, job_description: str) -> float | None
     """
     Returns cosine similarity [0,1] between resume and JD embeddings.
     Returns None if sentence-transformers is unavailable or encoding fails.
+    Set DISABLE_SEMANTIC=1 to skip (saves ~400MB RAM on memory-constrained hosts).
     """
+    import os
+    if os.getenv("DISABLE_SEMANTIC") == "1":
+        return None
     try:
         import numpy as np
         model = _encoder()
