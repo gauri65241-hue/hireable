@@ -776,8 +776,14 @@ Write a 3-4 sentence executive summary. Identify the top candidate/job pairing, 
 IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just plain text."""
     from analysers.base import call_llm_async
     cfg = get_api_config()
-    result = await call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
-                                   api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
+    try:
+        result = await asyncio.wait_for(
+            call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
+                           api_key=cfg["api_key"], api_base_url=cfg["api_base_url"]),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        return {"summary": "Summary unavailable — LLM timed out."}
     if not result.get("success"):
         return {"summary": "Summary unavailable — LLM call failed."}
     try:
@@ -806,8 +812,14 @@ Critical Missing Skills: {', '.join(body.missing_skills) if body.missing_skills 
 Highlight their strongest selling point and clearly state their biggest gap. Be objective, professional, and concise. Output plain text only."""
     from analysers.base import call_llm_async
     cfg = get_api_config()
-    result = await call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
-                                   api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
+    try:
+        result = await asyncio.wait_for(
+            call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
+                           api_key=cfg["api_key"], api_base_url=cfg["api_base_url"]),
+            timeout=20.0,
+        )
+    except asyncio.TimeoutError:
+        return {"summary": "Summary unavailable — LLM timed out."}
     if not result.get("success"):
         return {"summary": "Summary unavailable — LLM call failed."}
     try:
@@ -843,8 +855,11 @@ Job snippet: {(run.get('job_description') or '')[:300]}"""
     try:
         from analysers.base import call_llm_async
         cfg = get_api_config()
-        result = await call_llm_async(system, prompt, cfg["llm_model"], temperature=0.3,
-                                       api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
+        result = await asyncio.wait_for(
+            call_llm_async(system, prompt, cfg["llm_model"], temperature=0.3,
+                           api_key=cfg["api_key"], api_base_url=cfg["api_base_url"]),
+            timeout=20.0,
+        )
         if result.get("success"):
             return {"summary": result["data"].strip()}
     except Exception:
