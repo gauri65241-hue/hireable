@@ -1,30 +1,32 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 import { existsSync } from 'fs'
-import { fileURLToPath } from 'url'
+import path from 'path'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const srcDir = path.resolve(__dirname, 'src')
+// process.cwd() = /frontend when running `npm run build` — no import.meta.url needed
+const srcDir = path.resolve(process.cwd(), 'src')
 
-// Rollup skips extension resolution for absolute IDs returned by alias.
-// This plugin adds .ts/.tsx so @/lib/api resolves to @/lib/api.ts.
-const resolveAbsoluteExtensions = {
-  name: 'resolve-absolute-extensions',
+// enforce:'pre' intercepts @/ imports before vite:resolve applies alias,
+// so we own the full resolution including extension trial.
+const resolveAtAlias = {
+  name: 'resolve-at-alias',
+  enforce: 'pre',
   resolveId(id) {
-    if (id.startsWith(srcDir) && !path.extname(id) && !existsSync(id)) {
-      for (const ext of ['.ts', '.tsx']) {
-        if (existsSync(id + ext)) return id + ext
-      }
+    if (!id.startsWith('@/')) return
+    const subpath = id.slice(2)
+    for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
+      const full = path.join(srcDir, subpath + ext)
+      if (existsSync(full)) return full
+    }
+    for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
+      const full = path.join(srcDir, subpath, 'index' + ext)
+      if (existsSync(full)) return full
     }
   },
 }
 
 export default defineConfig({
-  plugins: [react(), resolveAbsoluteExtensions],
-  resolve: {
-    alias: { '@': srcDir },
-  },
+  plugins: [resolveAtAlias, react()],
   server: {
     port: 5173,
     proxy: {
