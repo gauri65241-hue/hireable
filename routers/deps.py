@@ -67,7 +67,10 @@ def get_api_config(request_api_key: str = "", request_api_base_url: str = "",
       2. OPENROUTER_API_KEY in env — auto-route to OpenRouter with per-model key lookup.
       3. Fall back to local Ollama with no key.
     """
-    if request_api_key or request_api_base_url:
+    _local_ollama = not request_api_key and any(
+        h in (request_api_base_url or "") for h in ("localhost", "127.0.0.1")
+    )
+    if (request_api_key or request_api_base_url) and not _local_ollama:
         return {
             "api_key":      request_api_key,
             "api_base_url": request_api_base_url,
