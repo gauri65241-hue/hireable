@@ -645,7 +645,10 @@ async def summarize_batch(request: Request, body: BatchSummaryRequest):
 Write a 3-4 sentence executive summary. Identify the top candidate/job pairing, note any major trends, and be decisive.
 
 IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just plain text."""
-    result = await execute_llm_call(prompt, body.model)
+    from analysers.base import call_llm_async
+    cfg = get_api_config()
+    result = await call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
+                                   api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
     if not result.get("success"):
         return {"summary": "Summary unavailable — LLM call failed."}
     try:
@@ -672,7 +675,10 @@ Experience Match: {body.metrics.get('experience_depth', 'N/A')}%
 Critical Missing Skills: {', '.join(body.missing_skills) if body.missing_skills else 'None'}
 
 Highlight their strongest selling point and clearly state their biggest gap. Be objective, professional, and concise. Output plain text only."""
-    result = await execute_llm_call(prompt, body.model)
+    from analysers.base import call_llm_async
+    cfg = get_api_config()
+    result = await call_llm_async("", prompt, cfg["llm_model"], temperature=0.1,
+                                   api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
     if not result.get("success"):
         return {"summary": "Summary unavailable — LLM call failed."}
     try:
@@ -706,8 +712,10 @@ Top coach notes: {'; '.join(r.get('recommendation','') for r in coach_recs if r.
 Resume snippet: {(run.get('resume_text') or '')[:400]}
 Job snippet: {(run.get('job_description') or '')[:300]}"""
     try:
-        from specialized_judges import call_ollama_async
-        result = await call_ollama_async(system, prompt, req.model, temperature=0.3)
+        from analysers.base import call_llm_async
+        cfg = get_api_config()
+        result = await call_llm_async(system, prompt, cfg["llm_model"], temperature=0.3,
+                                       api_key=cfg["api_key"], api_base_url=cfg["api_base_url"])
         if result.get("success"):
             return {"summary": result["data"].strip()}
     except Exception:
