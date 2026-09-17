@@ -91,7 +91,7 @@ def _truncate_jd(text: str, limit: int = 10_000) -> str:
 
 @router.post("/analyze")
 @limiter.limit("5/minute")
-async def analyze_resume_unified(http_request: Request, body: AnalyzeRequest,
+async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
                                   current_user: dict = Depends(get_current_user)):
     body = body.model_copy(update={"job_description": _truncate_jd(body.job_description)})
     try:
@@ -246,7 +246,7 @@ async def analyze_resume_unified(http_request: Request, body: AnalyzeRequest,
 
 @router.post("/analyze/stream")
 @limiter.limit("5/minute")
-async def analyze_stream(http_request: Request, body: AnalyzeRequest,
+async def analyze_stream(request: Request, body: AnalyzeRequest,
                          current_user: dict = Depends(get_current_user)):
     import asyncio as _asyncio
 
@@ -638,7 +638,7 @@ async def list_results(request: Request, limit: int = 50, offset: int = 0,
 
 @router.post("/summarize_batch")
 @limiter.limit("10/minute")
-async def summarize_batch(http_request: Request, body: BatchSummaryRequest):
+async def summarize_batch(request: Request, body: BatchSummaryRequest):
     prompt = f"""You are an executive HR Director. Review this batch of AI resume-to-job match scores:
 {body.batch_data}
 
@@ -659,7 +659,7 @@ IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just pla
 
 @router.post("/summarize_candidate")
 @limiter.limit("10/minute")
-async def summarize_candidate(http_request: Request, body: CandidateSummaryRequest):
+async def summarize_candidate(request: Request, body: CandidateSummaryRequest):
     prompt = f"""Act as an expert Technical Recruiter. Write a punchy, 2-3 sentence summary of this specific candidate's fit for the role.
 
 Candidate: {body.resume_name}
