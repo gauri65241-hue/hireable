@@ -91,12 +91,12 @@ def _truncate_jd(text: str, limit: int = 10_000) -> str:
 
 @router.post("/analyze")
 @limiter.limit("5/minute")
-async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
+async def analyze_resume_unified(http_request: Request, body: AnalyzeRequest,
                                   current_user: dict = Depends(get_current_user)):
-    request = request.model_copy(update={"job_description": _truncate_jd(request.job_description)})
+    body = body.model_copy(update={"job_description": _truncate_jd(body.job_description)})
     try:
-        sanitize_user_content(request.resume_text, "resume")
-        sanitize_user_content(request.job_description, "job_description")
+        sanitize_user_content(body.resume_text, "resume")
+        sanitize_user_content(body.job_description, "job_description")
     except ValueError as inj_err:
         raise HTTPException(status_code=422, detail=str(inj_err))
 
@@ -105,20 +105,20 @@ async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
     except asyncio.TimeoutError:
         raise HTTPException(status_code=503, detail="Server at capacity, try again shortly")
     try:
-        job_description = request.job_description
-        api_cfg = get_api_config(request.api_key, request.api_base_url, request.llm_models[0])
+        job_description = body.job_description
+        api_cfg = get_api_config(body.api_key, body.api_base_url, body.llm_models[0])
         model = api_cfg["llm_model"]
         timestamp = datetime.utcnow().isoformat()
         logger.info("analyze start model=%s api=%s resume=%dch jd=%dch",
                     model, "openrouter" if api_cfg["api_key"] else "ollama",
-                    len(request.resume_text), len(job_description))
+                    len(body.resume_text), len(job_description))
 
-        ats_result = score_ats(request.resume_text, job_description)
+        ats_result = score_ats(body.resume_text, job_description)
         ats_dict = ats_to_dict(ats_result)
         logger.info("ATS %d/100 (%s) issues=%d", ats_result.score, ats_result.grade, len(ats_result.issues))
 
         semantic_similarity = await asyncio.to_thread(
-            resume_jd_similarity, request.resume_text, job_description
+            resume_jd_similarity, body.resume_text, job_description
         )
         logger.info("semantic_similarity=%.3f", semantic_similarity or 0)
 
@@ -131,7 +131,7 @@ async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
             logger.warning("skills taxonomy load failed: %s", e)
 
         pipeline_result = await judge_engine.run(
-            resume_text=request.resume_text,
+            resume_text=body.resume_text,
             job_description=job_description,
             llm_model=model,
             skills_taxonomy=skills_taxonomy,
@@ -185,15 +185,15 @@ async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
         unquantified_statements  = impact_scores.get("unquantified_statements", [])
 
         coach_recommendations = None
-        if coach_result.get("success") and request.use_coach:
+        if coach_result.get("success") and body.use_coach:
             coach_recommendations = coach_result.get("data", {}).get("improvement_analysis", [])
 
         result_id = f"analysis_{timestamp.replace(':', '-').replace('.', '-')}"
         try:
             await asyncio.to_thread(
                 run_db.save_run,
-                result_id, model, request.resume_text, request.job_description,
-                pipeline_result, ats_dict, request.candidate_name, request.job_title,
+                result_id, model, body.resume_text, body.job_description,
+                pipeline_result, ats_dict, body.candidate_name, body.job_title,
                 current_user["user_id"],
             )
         except Exception as db_err:
@@ -246,11 +246,11 @@ async def analyze_resume_unified(http_request: Request, request: AnalyzeRequest,
 
 @router.post("/analyze/stream")
 @limiter.limit("5/minute")
-async def analyze_stream(http_request: Request, request: AnalyzeRequest,
+async def analyze_stream(http_request: Request, body: AnalyzeRequest,
                          current_user: dict = Depends(get_current_user)):
     import asyncio as _asyncio
 
-    request = request.model_copy(update={"job_description": _truncate_jd(request.job_description)})
+    body = body.model_copy(update={"job_description": _truncate_jd(body.job_description)})
 
     async def generate():
         def _event(obj: dict) -> str:
@@ -259,8 +259,8 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             return f"data: {payload}\n: {'x' * pad}\n\n"
 
         try:
-            sanitize_user_content(request.resume_text, "resume")
-            sanitize_user_content(request.job_description, "job_description")
+            sanitize_user_content(body.resume_text, "resume")
+            sanitize_user_content(body.job_description, "job_description")
         except ValueError as inj_err:
             yield _event({"event": "error", "detail": str(inj_err), "code": 422})
             return
@@ -272,7 +272,7 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             return
         try:
             engine    = judge_engine
-            api_cfg   = get_api_config(request.api_key, request.api_base_url, request.llm_models[0])
+            api_cfg   = get_api_config(body.api_key, body.api_base_url, body.llm_models[0])
             model     = api_cfg["llm_model"]
             timestamp = datetime.utcnow().isoformat()
             logger.info("stream analyze start model=%s api=%s",
@@ -284,7 +284,7 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             from analysers.engine import ATS_SKIP_THRESHOLD, SIMILARITY_MISMATCH_THRESHOLD, _FAST_JUDGES
             from analysers.config import cfg as _cfg
 
-            ats_result = score_ats(request.resume_text, request.job_description)
+            ats_result = score_ats(body.resume_text, body.job_description)
             ats_dict   = ats_to_dict(ats_result)
             yield _event({"event": "ats", "data": ats_dict, "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
 
@@ -314,7 +314,7 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             # Fix 3b + Fix 4: compute similarity before dispatching judges so we can
             # skip domain-mismatch judges, and route light judges to fast model
             semantic_similarity = await asyncio.to_thread(
-                resume_jd_similarity, request.resume_text, request.job_description
+                resume_jd_similarity, body.resume_text, body.job_description
             )
             yield _event({"event": "semantic_similarity", "value": semantic_similarity,
                           "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
@@ -332,11 +332,11 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             JUDGE_ORDER = [j for j in ["skills", "experience", "seniority", "relevancy", "impact"]
                            if j not in skip_in_stream]
             judge_coros = {
-                "skills":     engine.run_skills_judge(request.resume_text, request.job_description, _stream_model("skills"), skills_taxonomy, **kw),
-                "experience": engine.run_experience_judge(request.resume_text, request.job_description, _stream_model("experience"), **kw),
-                "seniority":  engine.run_seniority_judge(request.resume_text, request.job_description, _stream_model("seniority"), **kw),
-                "relevancy":  engine.run_relevancy_judge(request.resume_text, request.job_description, _stream_model("relevancy"), **kw),
-                "impact":     engine.run_impact_judge(request.resume_text, _stream_model("impact"), **kw),
+                "skills":     engine.run_skills_judge(body.resume_text, body.job_description, _stream_model("skills"), skills_taxonomy, **kw),
+                "experience": engine.run_experience_judge(body.resume_text, body.job_description, _stream_model("experience"), **kw),
+                "seniority":  engine.run_seniority_judge(body.resume_text, body.job_description, _stream_model("seniority"), **kw),
+                "relevancy":  engine.run_relevancy_judge(body.resume_text, body.job_description, _stream_model("relevancy"), **kw),
+                "impact":     engine.run_impact_judge(body.resume_text, _stream_model("impact"), **kw),
             }
             # Remove skipped judges from coros so they never run
             for j in skip_in_stream:
@@ -400,8 +400,8 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             imp = all_scores.get("impact", {})
 
             coach_task = _asyncio.create_task(engine.run_coach_judge(
-                resume_text=request.resume_text,
-                job_description=request.job_description,
+                resume_text=body.resume_text,
+                job_description=body.job_description,
                 missing_skills=s.get("missing_skills", []),
                 unmet_responsibilities=e.get("unmet_responsibilities", []),
                 absent_seniority_signals=sr.get("absent_signals", []),
@@ -440,15 +440,15 @@ async def analyze_stream(http_request: Request, request: AnalyzeRequest,
             try:
                 await asyncio.to_thread(
                     run_db.save_run,
-                    result_id, model, request.resume_text, request.job_description,
-                    pipeline_result, ats_dict, request.candidate_name, request.job_title,
+                    result_id, model, body.resume_text, body.job_description,
+                    pipeline_result, ats_dict, body.candidate_name, body.job_title,
                     current_user["user_id"],
                 )
             except Exception as db_err:
                 logger.warning("SQLite save failed (non-fatal): %s", db_err)
 
             coach_recs = None
-            if coach_result.get("success") and request.use_coach:
+            if coach_result.get("success") and body.use_coach:
                 coach_recs = coach_result.get("data", {}).get("improvement_analysis", [])
 
             stream_judge_scores = {
@@ -638,14 +638,14 @@ async def list_results(request: Request, limit: int = 50, offset: int = 0,
 
 @router.post("/summarize_batch")
 @limiter.limit("10/minute")
-async def summarize_batch(http_request: Request, request: BatchSummaryRequest):
+async def summarize_batch(http_request: Request, body: BatchSummaryRequest):
     prompt = f"""You are an executive HR Director. Review this batch of AI resume-to-job match scores:
-{request.batch_data}
+{body.batch_data}
 
 Write a 3-4 sentence executive summary. Identify the top candidate/job pairing, note any major trends, and be decisive.
 
 IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just plain text."""
-    result = await execute_llm_call(prompt, request.model)
+    result = await execute_llm_call(prompt, body.model)
     try:
         summary_text = result["data"]
         if "<!DOCTYPE" in summary_text or "<html" in summary_text:
@@ -659,18 +659,18 @@ IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just pla
 
 @router.post("/summarize_candidate")
 @limiter.limit("10/minute")
-async def summarize_candidate(http_request: Request, request: CandidateSummaryRequest):
+async def summarize_candidate(http_request: Request, body: CandidateSummaryRequest):
     prompt = f"""Act as an expert Technical Recruiter. Write a punchy, 2-3 sentence summary of this specific candidate's fit for the role.
 
-Candidate: {request.resume_name}
-Role: {request.job_title}
-Overall Match Score: {request.score}%
-Skills Match: {request.metrics.get('skills_coverage', 'N/A')}%
-Experience Match: {request.metrics.get('experience_depth', 'N/A')}%
-Critical Missing Skills: {', '.join(request.missing_skills) if request.missing_skills else 'None'}
+Candidate: {body.resume_name}
+Role: {body.job_title}
+Overall Match Score: {body.score}%
+Skills Match: {body.metrics.get('skills_coverage', 'N/A')}%
+Experience Match: {body.metrics.get('experience_depth', 'N/A')}%
+Critical Missing Skills: {', '.join(body.missing_skills) if body.missing_skills else 'None'}
 
 Highlight their strongest selling point and clearly state their biggest gap. Be objective, professional, and concise. Output plain text only."""
-    result = await execute_llm_call(prompt, request.model)
+    result = await execute_llm_call(prompt, body.model)
     try:
         summary_text = result["data"]
         if "<!DOCTYPE" in summary_text or "<html" in summary_text:
