@@ -174,6 +174,15 @@ def init_db():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS score_cache (
+                cache_key   TEXT PRIMARY KEY,
+                run_id      TEXT NOT NULL,
+                user_id     TEXT,
+                created_at  TEXT NOT NULL
+            )
+        """)
+
         # Migrate pre-existing DBs that predate some columns
         for table, col, defn in [
             ("runs",     "candidate_name",    "TEXT"),
@@ -556,6 +565,29 @@ def get_run(run_id: str, user_id: str = "") -> dict | None:
         "ats_grade": row["ats_grade"],
         "ats_validation": json.loads(row["ats_validation_json"]) if row["ats_validation_json"] else None,
     }
+
+
+# ── Score cache ───────────────────────────────────────────────────────────────
+
+def get_cached_run_id(cache_key: str) -> str | None:
+    pool = _get_pool()
+    conn = pool.acquire()
+    try:
+        row = conn.execute(
+            "SELECT run_id FROM score_cache WHERE cache_key=?", (cache_key,)
+        ).fetchone()
+    finally:
+        pool.release(conn)
+    return row["run_id"] if row else None
+
+
+def set_cached_run(cache_key: str, run_id: str, user_id: str = "") -> None:
+    def _insert(conn):
+        conn.execute(
+            "INSERT OR REPLACE INTO score_cache (cache_key, run_id, user_id, created_at) VALUES (?,?,?,?)",
+            (cache_key, run_id, user_id, datetime.utcnow().isoformat()),
+        )
+    _get_pool().execute_tx(_insert)
 
 
 # ── Outcomes ──────────────────────────────────────────────────────────────────

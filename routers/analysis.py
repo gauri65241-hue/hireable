@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -31,6 +32,7 @@ from routers.deps import (
     INTERVIEW_JUDGES, JOB_JUDGES,
     execute_llm_call, get_api_config,
 )
+from db import get_cached_run_id, set_cached_run
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class AnalyzeRequest(BaseModel):
     api_base_url: str = ""
     candidate_name: str = ""
     job_title: str = ""
+    force_rerun: bool = False
 
 class BatchSummaryRequest(BaseModel):
     batch_data: str
@@ -99,6 +102,55 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
         sanitize_user_content(body.job_description, "job_description")
     except ValueError as inj_err:
         raise HTTPException(status_code=422, detail=str(inj_err))
+
+    cache_key = hashlib.sha256(
+        f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
+    ).hexdigest()
+    if not body.force_rerun:
+        cached_id = await asyncio.to_thread(get_cached_run_id, cache_key)
+        if cached_id:
+            run = await asyncio.to_thread(run_db.get_run, cached_id, current_user["user_id"])
+            if run:
+                pr = run.get("pipeline_result", {})
+                ov = pr.get("overall", {})
+                cs = ov.get("component_scores", {})
+                s  = pr.get("skills", {}).get("scores", {})
+                e  = pr.get("experience", {}).get("scores", {})
+                sr = pr.get("seniority", {}).get("scores", {})
+                rel= pr.get("relevancy", {}).get("scores", {})
+                imp= pr.get("impact", {}).get("scores", {})
+                coach = pr.get("coach", {})
+                coach_recs = coach.get("data", {}).get("improvement_analysis", []) if coach.get("success") and body.use_coach else None
+                return {
+                    "success": True,
+                    "match_score": round(ov.get("overall_score", 0) * 100, 1),
+                    "metrics": {
+                        "skills_coverage":       round((cs.get("skills")     or 0) * 100, 1),
+                        "experience_depth":      round((cs.get("experience") or 0) * 100, 1),
+                        "seniority_calibration": round((cs.get("seniority")  or 0) * 100, 1),
+                        "statement_relevancy":   round((cs.get("relevancy")  or 0) * 100, 1),
+                        "impact_quantification": round((cs.get("impact")     or 0) * 100, 1),
+                    },
+                    "analysis": {
+                        "missing_critical_skills":  s.get("missing_skills", []),
+                        "unmet_responsibilities":   e.get("unmet_responsibilities", []),
+                        "absent_seniority_signals": sr.get("absent_signals", []),
+                        "irrelevant_statements":    rel.get("irrelevant_statements", []),
+                        "unquantified_statements":  imp.get("unquantified_statements", []),
+                        "coach_recommendations":    coach_recs,
+                    },
+                    "pipeline_data": pr,
+                    "ats_preflight": pr.get("ats_preflight", {}),
+                    "semantic_similarity": None,
+                    "suspect_scores": [],
+                    "metadata": {
+                        "model_used":       run.get("model", ""),
+                        "timestamp":        run.get("created_at", ""),
+                        "result_id":        cached_id,
+                        "pipeline_version": "5-stage-v2.0",
+                        "from_cache":       True,
+                    },
+                }
 
     try:
         await asyncio.wait_for(_analyze_sem.acquire(), timeout=_analyser_cfg.sem_acquire_timeout)
@@ -196,6 +248,7 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
                 pipeline_result, ats_dict, body.candidate_name, body.job_title,
                 current_user["user_id"],
             )
+            await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
         except Exception as db_err:
             logger.warning("SQLite save failed (non-fatal): %s", db_err)
 
@@ -264,6 +317,81 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
         except ValueError as inj_err:
             yield _event({"event": "error", "detail": str(inj_err), "code": 422})
             return
+
+        # Cache check — skip pipeline if same (user, resume, jd) was already run
+        if not body.force_rerun:
+            cache_key = hashlib.sha256(
+                f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
+            ).hexdigest()
+            cached_id = await asyncio.to_thread(get_cached_run_id, cache_key)
+            if cached_id:
+                run = await asyncio.to_thread(run_db.get_run, cached_id, current_user["user_id"])
+                if run:
+                    pr  = run.get("pipeline_result", {})
+                    ats = pr.get("ats_preflight", {})
+                    ov  = pr.get("overall", {})
+                    cs  = ov.get("component_scores", {})
+                    yield _event({"event": "cache_hit", "result_id": cached_id})
+                    yield _event({"event": "ats", "data": ats, "elapsed_s": 0})
+                    yield _event({"event": "semantic_similarity", "value": None, "elapsed_s": 0})
+                    for jname in ["skills", "experience", "seniority", "relevancy", "impact"]:
+                        jdata   = pr.get(jname, {})
+                        jscores = jdata.get("scores", {})
+                        yield _event({"event": "judge_start", "judge": jname, "elapsed_s": 0})
+                        yield _event({
+                            "event":    "judge",
+                            "judge":    jname,
+                            "score":    round(jscores.get("score", 0) * 100, 1),
+                            "success":  jdata.get("analyser_result", {}).get("success", False),
+                            "elapsed_s": 0,
+                            "pipeline_elapsed_s": 0,
+                        })
+                    yield _event({"event": "coach_start", "elapsed_s": 0})
+                    coach = pr.get("coach", {})
+                    coach_recs = None
+                    if coach.get("success") and body.use_coach:
+                        coach_recs = coach.get("data", {}).get("improvement_analysis", [])
+                    s   = pr.get("skills", {}).get("scores", {})
+                    e   = pr.get("experience", {}).get("scores", {})
+                    sr  = pr.get("seniority", {}).get("scores", {})
+                    rel = pr.get("relevancy", {}).get("scores", {})
+                    imp = pr.get("impact", {}).get("scores", {})
+                    yield _event({
+                        "event":       "complete",
+                        "match_score": round(ov.get("overall_score", 0) * 100, 1),
+                        "total_elapsed_s": 0,
+                        "metrics": {
+                            "skills_coverage":       round((cs.get("skills")     or 0) * 100, 1),
+                            "experience_depth":      round((cs.get("experience") or 0) * 100, 1),
+                            "seniority_calibration": round((cs.get("seniority")  or 0) * 100, 1),
+                            "statement_relevancy":   round((cs.get("relevancy")  or 0) * 100, 1),
+                            "impact_quantification": round((cs.get("impact")     or 0) * 100, 1),
+                        },
+                        "analysis": {
+                            "missing_critical_skills":  s.get("missing_skills", []),
+                            "unmet_responsibilities":   e.get("unmet_responsibilities", []),
+                            "absent_seniority_signals": sr.get("absent_signals", []),
+                            "irrelevant_statements":    rel.get("irrelevant_statements", []),
+                            "unquantified_statements":  imp.get("unquantified_statements", []),
+                            "coach_recommendations":    coach_recs,
+                        },
+                        "pipeline_data": pr,
+                        "ats_preflight": ats,
+                        "semantic_similarity": None,
+                        "suspect_scores": [],
+                        "metadata": {
+                            "model_used":       run.get("model", ""),
+                            "timestamp":        run.get("created_at", ""),
+                            "result_id":        cached_id,
+                            "pipeline_version": "5-stage-v2.0",
+                            "from_cache":       True,
+                        },
+                    })
+                    return
+        else:
+            cache_key = hashlib.sha256(
+                f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
+            ).hexdigest()
 
         try:
             await asyncio.wait_for(_analyze_sem.acquire(), timeout=_analyser_cfg.sem_acquire_timeout)
@@ -444,6 +572,7 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
                     pipeline_result, ats_dict, body.candidate_name, body.job_title,
                     current_user["user_id"],
                 )
+                await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
             except Exception as db_err:
                 logger.warning("SQLite save failed (non-fatal): %s", db_err)
 
