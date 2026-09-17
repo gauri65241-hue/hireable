@@ -646,6 +646,8 @@ Write a 3-4 sentence executive summary. Identify the top candidate/job pairing, 
 
 IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just plain text."""
     result = await execute_llm_call(prompt, body.model)
+    if not result.get("success"):
+        return {"summary": "Summary unavailable — LLM call failed."}
     try:
         summary_text = result["data"]
         if "<!DOCTYPE" in summary_text or "<html" in summary_text:
@@ -671,6 +673,8 @@ Critical Missing Skills: {', '.join(body.missing_skills) if body.missing_skills 
 
 Highlight their strongest selling point and clearly state their biggest gap. Be objective, professional, and concise. Output plain text only."""
     result = await execute_llm_call(prompt, body.model)
+    if not result.get("success"):
+        return {"summary": "Summary unavailable — LLM call failed."}
     try:
         summary_text = result["data"]
         if "<!DOCTYPE" in summary_text or "<html" in summary_text:
