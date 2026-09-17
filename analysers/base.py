@@ -203,9 +203,8 @@ def _call_api_model(system_prompt: str, user_prompt: str, model: str,
                     temperature: float = 0.0) -> dict:
     url = api_base_url.rstrip("/") + "/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {
+    base_payload = {
         "model": model, "temperature": 0.0,
-        "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
@@ -213,9 +212,14 @@ def _call_api_model(system_prompt: str, user_prompt: str, model: str,
     }
     # Exponential backoff on 429, respecting Retry-After header when present
     for attempt in range(4):
+        # Try with json_object mode first; fall back to plain text if unsupported (400)
+        payload = {**base_payload, "response_format": {"type": "json_object"}} if attempt == 0 else base_payload
         try:
             with httpx.Client(timeout=620.0) as client:
                 resp = client.post(url, json=payload, headers=headers)
+            if resp.status_code == 400 and attempt == 0:
+                logger.info("response_format unsupported by %s, retrying without it", model)
+                continue
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After") or resp.headers.get("X-RateLimit-Reset-Requests")
                 if retry_after:
