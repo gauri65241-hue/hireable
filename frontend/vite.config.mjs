@@ -1,9 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import path from 'path'
+import { existsSync } from 'fs'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const srcDir = path.resolve(__dirname, 'src')
+
+// Rollup skips extension resolution for absolute IDs returned by alias.
+// This plugin adds .ts/.tsx so @/lib/api resolves to @/lib/api.ts.
+const resolveAbsoluteExtensions = {
+  name: 'resolve-absolute-extensions',
+  resolveId(id) {
+    if (id.startsWith(srcDir) && !path.extname(id) && !existsSync(id)) {
+      for (const ext of ['.ts', '.tsx']) {
+        if (existsSync(id + ext)) return id + ext
+      }
+    }
+  },
+}
 
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react(), resolveAbsoluteExtensions],
+  resolve: {
+    alias: { '@': srcDir },
+  },
   server: {
     port: 5173,
     proxy: {
