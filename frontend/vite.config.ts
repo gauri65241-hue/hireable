@@ -25,5 +25,5 @@ export default defineConfig({
       '/record_outcome':{ target: 'http://127.0.0.1:8000', changeOrigin: true },
     },
   },
-  build: { outDir: '../frontend_dist' },
+  build: { outDir: 'dist' },
 })

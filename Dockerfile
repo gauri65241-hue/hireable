@@ -6,7 +6,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
-# Output lands in /frontend/../frontend_dist (vite.config outDir: '../frontend_dist')
+# Output lands in /frontend/dist (vite.config outDir: 'dist')
 
 
 # ── Stage 2: Python API ────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY . .
 
 # Copy built frontend from stage 1
-COPY --from=frontend-builder /frontend_dist ./frontend_dist
+COPY --from=frontend-builder /frontend/dist ./frontend_dist
 
 # Pre-warm SBERT model so first analysis request doesn't block 30s
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
