@@ -36,9 +36,10 @@ async def health_check():
         ollama_status = "error"
         ollama_detail = str(e)[:80]
 
-    # OpenRouter status
+    # OpenRouter status — read env directly; frozen cfg captures value at import time
     api_cfg = get_api_config()
-    openrouter_active = bool(api_cfg["api_key"])
+    _or_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    openrouter_active = bool(_or_key or api_cfg["api_key"])
     openrouter_status = "connected" if openrouter_active else "not_configured"
     openrouter_detail = f"{api_cfg['llm_model']} / {api_cfg['fast_model']}" if openrouter_active else "Set OPENROUTER_API_KEY to enable"
 
