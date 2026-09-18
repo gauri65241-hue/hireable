@@ -118,7 +118,11 @@ if os.path.isdir(_FRONTEND):
         if full_path and os.path.isfile(candidate):
             return FileResponse(candidate)
         # All other paths → SPA index.html (client-side routing)
-        return FileResponse(os.path.join(_FRONTEND, "index.html"))
+        # no-cache so browsers always refetch the HTML entry point (hashed assets are fine to cache)
+        return FileResponse(
+            os.path.join(_FRONTEND, "index.html"),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 
 
 if __name__ == "__main__":
