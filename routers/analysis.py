@@ -10,14 +10,15 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
-from pydantic import BaseModel
+from ratelimit import limiter
+from concurrency import run_blocking
+from pydantic import BaseModel, Field
 
 from auth_utils import get_current_user
 
+from analysers.base import prepare_user_text
+from analysers.engine import PIPELINE_VERSION, pipeline_status
 from analysers.semantic import resume_jd_similarity, flag_suspect_scores
 
 from routers.deps import (
@@ -30,7 +31,7 @@ from routers.deps import (
     calculate_seniority_score, calculate_relevancy_score, calculate_impact_score,
     compute_learned_weights, append_feedback,
     INTERVIEW_JUDGES, JOB_JUDGES,
-    execute_llm_call, get_api_config,
+    execute_llm_call, get_api_config, make_cache_key,
 )
 from db import get_cached_run_id, set_cached_run
 
@@ -64,13 +65,18 @@ class CandidateSummaryRequest(BaseModel):
     missing_skills: list
     model: str
 
+RESULT_ID_PATTERN = r"^analysis_[0-9A-Za-z_\-]{1,64}$"
+
+
 class SummarizeResultRequest(BaseModel):
-    result_id: str
+    result_id: str = Field(pattern=RESULT_ID_PATTERN)
     model: str = "cogito:14b"
 
 class RecordOutcomeRequest(BaseModel):
-    result_id: str
-    predicted_score: float
+    result_id: str = Field(pattern=RESULT_ID_PATTERN)
+    # Ignored: the score is read from the stored run. (A client-supplied score let anyone
+    # write arbitrary "predictions" into the accuracy stats that feed learned weights.)
+    predicted_score: Optional[float] = None
     got_job: Optional[bool] = None
     got_interview: Optional[bool] = None
     interview_stage: Optional[str] = None    # phone_screen | technical | final | offer
@@ -98,14 +104,20 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
                                   current_user: dict = Depends(get_current_user)):
     body = body.model_copy(update={"job_description": _truncate_jd(body.job_description)})
     try:
-        sanitize_user_content(body.resume_text, "resume")
-        sanitize_user_content(body.job_description, "job_description")
+        # Normalise + neutralise instruction-like text (flag, don't reject, don't leak rules).
+        clean_resume, resume_flags = prepare_user_text(body.resume_text, "resume")
+        clean_jd, jd_flags = prepare_user_text(body.job_description, "job_description")
     except ValueError as inj_err:
         raise HTTPException(status_code=422, detail=str(inj_err))
+    security_flags = resume_flags + jd_flags
+    body = body.model_copy(update={"resume_text": clean_resume, "job_description": clean_jd})
 
-    cache_key = hashlib.sha256(
-        f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
-    ).hexdigest()
+    api_cfg = get_api_config(body.api_key, body.api_base_url, body.llm_models[0])   # validates api_base_url
+    model = api_cfg["llm_model"]
+    learned = await run_blocking(compute_learned_weights, timeout=10.0)
+    weights = learned["weights"] if learned["source"] == "learned" else None
+    cache_key = make_cache_key(current_user["user_id"], body.resume_text, body.job_description,
+                               model, weights)
     if not body.force_rerun:
         cached_id = await asyncio.to_thread(get_cached_run_id, cache_key)
         if cached_id:
@@ -147,7 +159,7 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
                         "model_used":       run.get("model", ""),
                         "timestamp":        run.get("created_at", ""),
                         "result_id":        cached_id,
-                        "pipeline_version": "5-stage-v2.0",
+                        "pipeline_version": ov.get("pipeline_version") or PIPELINE_VERSION,
                         "from_cache":       True,
                     },
                 }
@@ -155,17 +167,16 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
     try:
         await asyncio.wait_for(_analyze_sem.acquire(), timeout=_analyser_cfg.sem_acquire_timeout)
     except asyncio.TimeoutError:
-        raise HTTPException(status_code=503, detail="Server at capacity, try again shortly")
+        raise HTTPException(status_code=503, detail="Server at capacity, try again shortly",
+                            headers={"Retry-After": "30"})
     try:
         job_description = body.job_description
-        api_cfg = get_api_config(body.api_key, body.api_base_url, body.llm_models[0])
-        model = api_cfg["llm_model"]
         timestamp = datetime.utcnow().isoformat()
         logger.info("analyze start model=%s api=%s resume=%dch jd=%dch",
                     model, "openrouter" if api_cfg["api_key"] else "ollama",
                     len(body.resume_text), len(job_description))
 
-        ats_result = score_ats(body.resume_text, job_description)
+        ats_result = await run_blocking(score_ats, body.resume_text, job_description, timeout=20.0)
         ats_dict = ats_to_dict(ats_result)
         logger.info("ATS %d/100 (%s) issues=%d", ats_result.score, ats_result.grade, len(ats_result.issues))
 
@@ -192,26 +203,30 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
             fast_model=api_cfg["fast_model"],
             ats_score=ats_result.score,
             semantic_similarity=semantic_similarity,
+            weights=weights,
+            user_id=current_user["user_id"],
         )
 
         if not pipeline_result:
             raise HTTPException(status_code=500, detail="Judge pipeline failed to produce results")
 
         pipeline_result["ats_preflight"] = ats_dict
+        pipeline_result["weights_source"] = "learned" if weights else "default"
 
-        learned = compute_learned_weights()
-        if learned["source"] == "learned":
-            s  = pipeline_result.get("skills", {}).get("scores", {})
-            e  = pipeline_result.get("experience", {}).get("scores", {})
-            sr = pipeline_result.get("seniority", {}).get("scores", {})
-            rl = pipeline_result.get("relevancy", {}).get("scores", {})
-            im = pipeline_result.get("impact", {}).get("scores", {})
-            skills_ok = pipeline_result.get("skills", {}).get("analyser_result", {}).get("success", False)
-            pipeline_result["overall"] = calculate_overall_match(s, e, sr, rl, im, learned["weights"], skills_gate_enabled=skills_ok)
-            pipeline_result["weights_source"] = "learned"
-            logger.info("learned weights applied: %s", learned["weights"])
-        else:
-            pipeline_result["weights_source"] = "default"
+        run_status = pipeline_status(pipeline_result.get("overall", {}))
+        if run_status == "not_scored":
+            raise HTTPException(status_code=422, detail={
+                "error": "not_scored",
+                "message": pipeline_result["overall"].get("early_exit_reason", "Resume could not be scored."),
+                "ats_preflight": ats_dict,
+            })
+        if run_status == "insufficient":
+            raise HTTPException(status_code=503, headers={"Retry-After": "30"}, detail={
+                "error": "insufficient_judges",
+                "message": "Too few evaluation judges completed to produce a trustworthy score. "
+                           "No score was recorded; please retry.",
+                "judge_statuses": pipeline_result["overall"].get("judge_statuses", {}),
+            })
 
         overall          = pipeline_result.get("overall", {})
         skills_scores    = pipeline_result.get("skills", {}).get("scores", {})
@@ -248,7 +263,8 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
                 pipeline_result, ats_dict, body.candidate_name, body.job_title,
                 current_user["user_id"],
             )
-            await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
+            if run_status == "complete":
+                await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
         except Exception as db_err:
             logger.warning("SQLite save failed (non-fatal): %s", db_err)
 
@@ -282,15 +298,24 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
             "ats_preflight": ats_dict,
             "semantic_similarity": semantic_similarity,
             "suspect_scores": suspect_scores,
+            "status": run_status,
+            "degraded": run_status == "degraded",
+            "failed_judges": [k for k, v in overall.get("judge_statuses", {}).items()
+                              if v.get("status") in ("failed", "timeout")],
+            "security_flags": security_flags + [f for f in overall.get("security_flags", [])
+                                                if f not in security_flags],
             "metadata": {
                 "model_used":       model,
                 "timestamp":        timestamp,
                 "result_id":        result_id,
-                "pipeline_version": "5-stage-v2.0",
+                "pipeline_version": PIPELINE_VERSION,
             }
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("analyze failed")
+        raise HTTPException(status_code=500, detail="Analysis failed. Please try again.")
     finally:
         _analyze_sem.release()
 
@@ -301,7 +326,7 @@ async def analyze_resume_unified(request: Request, body: AnalyzeRequest,
 @limiter.limit("5/minute")
 async def analyze_stream(request: Request, body: AnalyzeRequest,
                          current_user: dict = Depends(get_current_user)):
-    import asyncio as _asyncio
+    import time as _time
 
     body = body.model_copy(update={"job_description": _truncate_jd(body.job_description)})
 
@@ -312,17 +337,27 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
             return f"data: {payload}\n: {'x' * pad}\n\n"
 
         try:
-            sanitize_user_content(body.resume_text, "resume")
-            sanitize_user_content(body.job_description, "job_description")
+            clean_resume, resume_flags = prepare_user_text(body.resume_text, "resume")
+            clean_jd, jd_flags = prepare_user_text(body.job_description, "job_description")
         except ValueError as inj_err:
             yield _event({"event": "error", "detail": str(inj_err), "code": 422})
             return
+        security_flags = resume_flags + jd_flags
+        run_body = body.model_copy(update={"resume_text": clean_resume, "job_description": clean_jd})
 
-        # Cache check — skip pipeline if same (user, resume, jd) was already run
+        try:
+            api_cfg = get_api_config(run_body.api_key, run_body.api_base_url, run_body.llm_models[0])
+        except HTTPException as http_err:
+            yield _event({"event": "error", "detail": str(http_err.detail), "code": http_err.status_code})
+            return
+        model = api_cfg["llm_model"]
+        learned = await run_blocking(compute_learned_weights, timeout=10.0)
+        weights = learned["weights"] if learned["source"] == "learned" else None
+        cache_key = make_cache_key(current_user["user_id"], run_body.resume_text,
+                                   run_body.job_description, model, weights)
+
+        # Cache check — same (user, resume, jd, model, weights, pipeline version) and a COMPLETE run
         if not body.force_rerun:
-            cache_key = hashlib.sha256(
-                f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
-            ).hexdigest()
             cached_id = await asyncio.to_thread(get_cached_run_id, cache_key)
             if cached_id:
                 run = await asyncio.to_thread(run_db.get_run, cached_id, current_user["user_id"])
@@ -383,52 +418,29 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
                             "model_used":       run.get("model", ""),
                             "timestamp":        run.get("created_at", ""),
                             "result_id":        cached_id,
-                            "pipeline_version": "5-stage-v2.0",
+                            "pipeline_version": ov.get("pipeline_version") or PIPELINE_VERSION,
                             "from_cache":       True,
                         },
                     })
                     return
-        else:
-            cache_key = hashlib.sha256(
-                f"{current_user['user_id']}|{body.resume_text}|{body.job_description}".encode()
-            ).hexdigest()
 
         try:
             await asyncio.wait_for(_analyze_sem.acquire(), timeout=_analyser_cfg.sem_acquire_timeout)
         except asyncio.TimeoutError:
-            yield _event({"event": "error", "detail": "Server at capacity, try again shortly", "code": 503})
+            yield _event({"event": "error", "detail": "Server at capacity, try again shortly",
+                          "code": 503, "retry_after_s": 30})
             return
+
+        engine_task = None
         try:
-            engine    = judge_engine
-            api_cfg   = get_api_config(body.api_key, body.api_base_url, body.llm_models[0])
-            model     = api_cfg["llm_model"]
             timestamp = datetime.utcnow().isoformat()
             logger.info("stream analyze start model=%s api=%s",
                         model, "openrouter" if api_cfg["api_key"] else "ollama")
-
-            import time as _time
             _pipeline_start = _time.monotonic()
 
-            from analysers.engine import ATS_SKIP_THRESHOLD, SIMILARITY_MISMATCH_THRESHOLD, _FAST_JUDGES
-            from analysers.config import cfg as _cfg
-
-            ats_result = score_ats(body.resume_text, body.job_description)
+            ats_result = await run_blocking(score_ats, run_body.resume_text, run_body.job_description, timeout=20.0)
             ats_dict   = ats_to_dict(ats_result)
             yield _event({"event": "ats", "data": ats_dict, "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
-
-            # Fix 3a: ATS early exit on stream path
-            if ats_result.score < ATS_SKIP_THRESHOLD:
-                logger.info("stream: ATS early exit score=%.0f", ats_result.score)
-                yield _event({
-                    "event": "early_exit",
-                    "reason": "ats_formatting",
-                    "detail": (
-                        f"ATS score {ats_result.score:.0f}/100 is below threshold. "
-                        "Fix resume formatting before running LLM analysis."
-                    ),
-                    "elapsed_s": round(_time.monotonic() - _pipeline_start, 1),
-                })
-                return
 
             skills_taxonomy = {}
             try:
@@ -437,142 +449,88 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
             except Exception:
                 pass
 
-            kw = dict(api_key=api_cfg["api_key"], api_base_url=api_cfg["api_base_url"])
-
-            # Fix 3b + Fix 4: compute similarity before dispatching judges so we can
-            # skip domain-mismatch judges, and route light judges to fast model
             semantic_similarity = await asyncio.to_thread(
-                resume_jd_similarity, body.resume_text, body.job_description
+                resume_jd_similarity, run_body.resume_text, run_body.job_description
             )
             yield _event({"event": "semantic_similarity", "value": semantic_similarity,
                           "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
 
-            domain_mismatch = (semantic_similarity is not None
-                               and semantic_similarity < SIMILARITY_MISMATCH_THRESHOLD)
-            skip_in_stream: set[str] = {"seniority", "relevancy"} if domain_mismatch else set()
-            if domain_mismatch:
-                logger.info("stream: domain mismatch similarity=%.3f — skipping %s", semantic_similarity, skip_in_stream)
-
-            def _stream_model(judge: str) -> str:
-                fast = api_cfg["fast_model"]
-                return fast if (fast and judge in _FAST_JUDGES) else model
-
-            JUDGE_ORDER = [j for j in ["skills", "experience", "seniority", "relevancy", "impact"]
-                           if j not in skip_in_stream]
-            judge_coros = {
-                "skills":     engine.run_skills_judge(body.resume_text, body.job_description, _stream_model("skills"), skills_taxonomy, **kw),
-                "experience": engine.run_experience_judge(body.resume_text, body.job_description, _stream_model("experience"), **kw),
-                "seniority":  engine.run_seniority_judge(body.resume_text, body.job_description, _stream_model("seniority"), **kw),
-                "relevancy":  engine.run_relevancy_judge(body.resume_text, body.job_description, _stream_model("relevancy"), **kw),
-                "impact":     engine.run_impact_judge(body.resume_text, _stream_model("impact"), **kw),
-            }
-            # Remove skipped judges from coros so they never run
-            for j in skip_in_stream:
-                judge_coros.pop(j, None)
-            task_to_name = {}
-            judge_start_times = {}
-            pending = set()
-            for name in JUDGE_ORDER:
-                t = _asyncio.create_task(judge_coros[name])
-                task_to_name[t] = name
-                judge_start_times[name] = _time.monotonic()
-                pending.add(t)
-                yield _event({"event": "judge_start", "judge": name, "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
-            await _asyncio.sleep(0)
-
-            SCORE_FNS = {
-                "skills":     calculate_skills_score,
-                "experience": calculate_experience_score,
-                "seniority":  calculate_seniority_score,
-                "relevancy":  calculate_relevancy_score,
-                "impact":     calculate_impact_score,
-            }
-            judge_results = {}
-            all_scores    = {}
-
-            while pending:
-                done, pending = await _asyncio.wait(pending, return_when=_asyncio.FIRST_COMPLETED, timeout=10.0)
-                if not done:
-                    yield _event({"event": "tick", "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
-                    await _asyncio.sleep(0)
-                    continue
-                for task in done:
-                    name = task_to_name[task]
-                    judge_elapsed = round(_time.monotonic() - judge_start_times[name], 1)
-                    try:
-                        result = task.result()
-                    except Exception as e:
-                        result = {"success": False, "data": {}, "error": str(e)}
-                    judge_results[name] = result
-                    scores = SCORE_FNS[name](result.get("data", {}))
-                    all_scores[name] = scores
-                    yield _event({
-                        "event":      "judge",
-                        "judge":      name,
-                        "score":      round(scores.get("score", 0) * 100, 1),
-                        "success":    result.get("success", False),
-                        "elapsed_s":  judge_elapsed,
-                        "pipeline_elapsed_s": round(_time.monotonic() - _pipeline_start, 1),
-                    })
-                    await _asyncio.sleep(0)
-
-            # semantic_similarity already computed before judges started (for adaptive routing)
-            logger.info("stream semantic_similarity=%.3f", semantic_similarity or 0)
-
-            yield _event({"event": "coach_start", "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
-            await _asyncio.sleep(0)
-            s   = all_scores.get("skills", {})
-            e   = all_scores.get("experience", {})
-            sr  = all_scores.get("seniority", {})
-            rel = all_scores.get("relevancy", {})
-            imp = all_scores.get("impact", {})
-
-            coach_task = _asyncio.create_task(engine.run_coach_judge(
-                resume_text=body.resume_text,
-                job_description=body.job_description,
-                missing_skills=s.get("missing_skills", []),
-                unmet_responsibilities=e.get("unmet_responsibilities", []),
-                absent_seniority_signals=sr.get("absent_signals", []),
-                irrelevant_statements=rel.get("irrelevant_statements", []),
-                unquantified_statements=imp.get("unquantified_statements", []),
-                llm_model=model, **kw,
+            # ONE orchestration path: the engine (timeouts, quorum, weight renormalisation,
+            # arbitration, gates) runs the judges and reports progress through a queue. The
+            # previous stream handler re-implemented the pipeline without any of those
+            # protections, so a failed judge counted as a real zero here.
+            queue: asyncio.Queue = asyncio.Queue()
+            engine_task = asyncio.create_task(judge_engine.run(
+                resume_text=run_body.resume_text,
+                job_description=run_body.job_description,
+                llm_model=model,
+                skills_taxonomy=skills_taxonomy,
+                api_key=api_cfg["api_key"],
+                api_base_url=api_cfg["api_base_url"],
+                fast_model=api_cfg["fast_model"],
+                ats_score=ats_result.score,
+                semantic_similarity=semantic_similarity,
+                weights=weights,
+                user_id=current_user["user_id"],
+                progress=queue.put_nowait,
             ))
-            while not coach_task.done():
+            engine_task.add_done_callback(lambda _t: queue.put_nowait(None))
+
+            while True:
                 try:
-                    await _asyncio.wait_for(_asyncio.shield(coach_task), timeout=10.0)
-                except _asyncio.TimeoutError:
-                    yield ": heartbeat\n\n"
-                    await _asyncio.sleep(0)
-            coach_result = coach_task.result()
+                    ev = await asyncio.wait_for(queue.get(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    yield _event({"event": "tick", "elapsed_s": round(_time.monotonic() - _pipeline_start, 1)})
+                    continue
+                if ev is None:
+                    break
+                yield _event(ev)
 
-            skills_succeeded = judge_results.get("skills", {}).get("success", False)
-            learned = compute_learned_weights()
-            overall = (
-                calculate_overall_match(s, e, sr, rel, imp, learned["weights"], skills_gate_enabled=skills_succeeded)
-                if learned["source"] == "learned"
-                else calculate_overall_match(s, e, sr, rel, imp, skills_gate_enabled=skills_succeeded)
-            )
+            try:
+                pipeline_result = engine_task.result()
+            except Exception:
+                logger.exception("stream pipeline failed")
+                yield _event({"event": "error", "detail": "Analysis failed. Please try again."})
+                return
 
-            pipeline_result = {
-                "overall":    overall,
-                "skills":     {"analyser_result": judge_results.get("skills", {}),     "scores": s},
-                "experience": {"analyser_result": judge_results.get("experience", {}), "scores": e},
-                "seniority":  {"analyser_result": judge_results.get("seniority", {}),  "scores": sr},
-                "relevancy":  {"analyser_result": judge_results.get("relevancy", {}),  "scores": rel},
-                "impact":     {"analyser_result": judge_results.get("impact", {}),     "scores": imp},
-                "coach":      coach_result,
-                "ats_preflight": ats_dict,
-            }
+            pipeline_result["ats_preflight"] = ats_dict
+            pipeline_result["weights_source"] = "learned" if weights else "default"
+            overall = pipeline_result.get("overall", {})
+            run_status = pipeline_status(overall)
+
+            if run_status == "not_scored":
+                yield _event({
+                    "event": "early_exit", "reason": overall.get("early_exit", "unreadable_text"),
+                    "detail": overall.get("early_exit_reason", "Resume could not be scored."),
+                    "elapsed_s": round(_time.monotonic() - _pipeline_start, 1),
+                })
+                return
+            if run_status == "insufficient":
+                yield _event({
+                    "event": "error", "code": 503, "retry_after_s": 30,
+                    "detail": "Too few evaluation judges completed to produce a trustworthy score. "
+                              "No score was recorded; please retry.",
+                    "judge_statuses": overall.get("judge_statuses", {}),
+                })
+                return
+
+            s   = pipeline_result.get("skills", {}).get("scores", {})
+            e   = pipeline_result.get("experience", {}).get("scores", {})
+            sr  = pipeline_result.get("seniority", {}).get("scores", {})
+            rel = pipeline_result.get("relevancy", {}).get("scores", {})
+            imp = pipeline_result.get("impact", {}).get("scores", {})
+            coach_result = pipeline_result.get("coach", {})
 
             result_id = f"analysis_{timestamp.replace(':', '-').replace('.', '-')}"
             try:
                 await asyncio.to_thread(
                     run_db.save_run,
-                    result_id, model, body.resume_text, body.job_description,
+                    result_id, model, run_body.resume_text, run_body.job_description,
                     pipeline_result, ats_dict, body.candidate_name, body.job_title,
                     current_user["user_id"],
                 )
-                await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
+                if run_status == "complete":
+                    await asyncio.to_thread(set_cached_run, cache_key, result_id, current_user["user_id"])
             except Exception as db_err:
                 logger.warning("SQLite save failed (non-fatal): %s", db_err)
 
@@ -580,18 +538,21 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
             if coach_result.get("success") and body.use_coach:
                 coach_recs = coach_result.get("data", {}).get("improvement_analysis", [])
 
-            stream_judge_scores = {
-                "skills":     s.get("score"),
-                "relevancy":  rel.get("score"),
-                "experience": e.get("score"),
-                "impact":     imp.get("score"),
-            }
-            suspect_scores = flag_suspect_scores(stream_judge_scores, semantic_similarity)
+            suspect_scores = flag_suspect_scores({
+                "skills": s.get("score"), "relevancy": rel.get("score"),
+                "experience": e.get("score"), "impact": imp.get("score"),
+            }, semantic_similarity)
 
             yield _event({
                 "event":       "complete",
                 "match_score": round(overall.get("overall_score", 0) * 100, 1),
                 "total_elapsed_s": round(_time.monotonic() - _pipeline_start, 1),
+                "status":      run_status,
+                "degraded":    run_status == "degraded",
+                "failed_judges": [k for k, v in overall.get("judge_statuses", {}).items()
+                                  if v.get("status") in ("failed", "timeout")],
+                "security_flags": security_flags + [f for f in overall.get("security_flags", [])
+                                                    if f not in security_flags],
                 "metrics": {
                     "skills_coverage":       round(s.get("score", 0) * 100, 1),
                     "experience_depth":      round(e.get("score", 0) * 100, 1),
@@ -615,13 +576,19 @@ async def analyze_stream(request: Request, body: AnalyzeRequest,
                     "model_used":       model,
                     "timestamp":        timestamp,
                     "result_id":        result_id,
-                    "pipeline_version": "5-stage-v2.0",
+                    "pipeline_version": PIPELINE_VERSION,
                 },
             })
 
-        except Exception as e:
-            yield _event({"event": "error", "detail": str(e)})
+        except Exception:
+            logger.exception("stream analyze failed")
+            yield _event({"event": "error", "detail": "Analysis failed. Please try again."})
         finally:
+            # Client disconnect (GeneratorExit/CancelledError) lands here too: stop the
+            # pipeline so it does not keep spending LLM time for nobody. With native-async
+            # LLM calls, cancellation really aborts the in-flight requests.
+            if engine_task is not None and not engine_task.done():
+                engine_task.cancel()
             _analyze_sem.release()
 
     return StreamingResponse(
@@ -767,7 +734,8 @@ async def list_results(request: Request, limit: int = 50, offset: int = 0,
 
 @router.post("/summarize_batch")
 @limiter.limit("10/minute")
-async def summarize_batch(request: Request, body: BatchSummaryRequest):
+async def summarize_batch(request: Request, body: BatchSummaryRequest,
+                          current_user: dict = Depends(get_current_user)):
     prompt = f"""You are an executive HR Director. Review this batch of AI resume-to-job match scores:
 {body.batch_data}
 
@@ -799,7 +767,8 @@ IMPORTANT: Output plain text only. No HTML, no markdown, no formatting. Just pla
 
 @router.post("/summarize_candidate")
 @limiter.limit("10/minute")
-async def summarize_candidate(request: Request, body: CandidateSummaryRequest):
+async def summarize_candidate(request: Request, body: CandidateSummaryRequest,
+                              current_user: dict = Depends(get_current_user)):
     prompt = f"""Act as an expert Technical Recruiter. Write a punchy, 2-3 sentence summary of this specific candidate's fit for the role.
 
 Candidate: {body.resume_name}
@@ -835,8 +804,9 @@ Highlight their strongest selling point and clearly state their biggest gap. Be 
 
 @router.post("/summarize_result")
 @limiter.limit("10/minute")
-async def summarize_result(request: Request, req: SummarizeResultRequest):
-    run = await asyncio.to_thread(run_db.get_run, req.result_id)
+async def summarize_result(request: Request, req: SummarizeResultRequest,
+                           current_user: dict = Depends(get_current_user)):
+    run = await asyncio.to_thread(run_db.get_run, req.result_id, current_user["user_id"])
     if not run:
         raise HTTPException(status_code=404, detail="Result not found")
     pr = run.get("pipeline_result", {})
@@ -871,76 +841,70 @@ Job snippet: {(run.get('job_description') or '')[:300]}"""
 
 @router.post("/record_outcome")
 @limiter.limit("30/minute")
-async def record_outcome(request: Request, req: RecordOutcomeRequest):
+async def record_outcome(request: Request, req: RecordOutcomeRequest,
+                         current_user: dict = Depends(get_current_user)):
+    uid = current_user["user_id"]
+    # Ownership: only the run's owner may record an outcome for it (this also makes the
+    # lookup user-scoped; the old unscoped get_run(id) matched nothing for real users, so
+    # the learning loop silently never received feedback).
+    run_record = await asyncio.to_thread(run_db.get_run, req.result_id, uid)
+    if not run_record:
+        raise HTTPException(status_code=404, detail="Result not found")
+    pr = run_record.get("pipeline_result", {})
+    overall = pr.get("overall", {})
+    stored_pct = round((overall.get("overall_score") or 0) * 100, 1)
     now = datetime.utcnow().isoformat()
-    await asyncio.to_thread(
+
+    created = await asyncio.to_thread(
         run_db.save_outcome,
-        req.result_id, req.predicted_score, req.got_job, req.got_interview,
-        req.interview_stage, req.rejection_reason,
+        req.result_id, stored_pct, req.got_job, req.got_interview,
+        req.interview_stage, req.rejection_reason, uid,
     )
 
-    run_record = await asyncio.to_thread(run_db.get_run, req.result_id)
-    if run_record:
-        pr = run_record.get("pipeline_result", {})
-    else:
-        pipeline_file = os.path.join(BASE_DIR, "results", "pipeline", f"{req.result_id}.json")
-        pr = {}
-        if os.path.isfile(pipeline_file):
-            with open(pipeline_file, "r", encoding="utf-8") as pf:
-                pr = json.load(pf).get("pipeline_result", {})
+    # Only a NEW outcome on a COMPLETE run trains the judges, and only judges that actually
+    # produced a score. Re-submits and degraded runs would otherwise inflate or poison the
+    # weights/calibration that feed every future prompt.
+    statuses = overall.get("judge_statuses", {})
+    run_ok = overall.get("status", "complete") == "complete"
+    if created and run_ok and pr:
+        def _score(name: str):
+            if statuses.get(name, {}).get("status", "success") != "success":
+                return None
+            if name == "overall":
+                return overall.get("overall_score")
+            return pr.get(name, {}).get("scores", {}).get("score")
 
-    if pr:
-        judge_scores = {
-            "skills":     pr.get("skills", {}).get("scores", {}).get("score"),
-            "experience": pr.get("experience", {}).get("scores", {}).get("score"),
-            "seniority":  pr.get("seniority", {}).get("scores", {}).get("score"),
-            "relevancy":  pr.get("relevancy", {}).get("scores", {}).get("score"),
-            "impact":     pr.get("impact", {}).get("scores", {}).get("score"),
-            "overall":    pr.get("overall", {}).get("overall_score"),
-        }
         feedback_entries = []
-        if req.got_interview is not None:
-            for j in INTERVIEW_JUDGES:
-                score = judge_scores.get(j)
+        def _entries(judges, signal, outcome, threshold):
+            for j in judges:
+                score = _score(j)
                 if score is None:
                     continue
                 entry = {
-                    "judge": j, "signal": "got_interview",
-                    "predicted_score": score, "outcome": req.got_interview,
-                    "correct": (score >= 0.5) == req.got_interview,
-                    "timestamp": now,
+                    "judge": j, "signal": signal, "predicted_score": score, "outcome": outcome,
+                    "correct": (score >= threshold) == outcome, "timestamp": now,
+                    "result_id": req.result_id, "user_id": uid,
                 }
                 if req.interview_stage:
                     entry["interview_stage"] = req.interview_stage
                 if req.rejection_reason:
                     entry["rejection_reason"] = req.rejection_reason
                 feedback_entries.append(entry)
-        if req.got_job is not None:
-            for j in JOB_JUDGES:
-                score = judge_scores.get(j)
-                if score is None:
-                    continue
-                entry = {
-                    "judge": j, "signal": "got_job",
-                    "predicted_score": score, "outcome": req.got_job,
-                    "correct": (score >= 0.6) == req.got_job,
-                    "timestamp": now,
-                }
-                if req.interview_stage:
-                    entry["interview_stage"] = req.interview_stage
-                if req.rejection_reason:
-                    entry["rejection_reason"] = req.rejection_reason
-                feedback_entries.append(entry)
-        if feedback_entries:
-            append_feedback(feedback_entries)
 
-    return {"success": True}
+        if req.got_interview is not None:
+            _entries(INTERVIEW_JUDGES, "got_interview", req.got_interview, 0.5)
+        if req.got_job is not None:
+            _entries(JOB_JUDGES, "got_job", req.got_job, 0.6)
+        if feedback_entries:
+            await run_blocking(append_feedback, feedback_entries, timeout=10.0)
+
+    return {"success": True, "recorded": bool(created)}
 
 
 @router.get("/outcomes")
 @limiter.limit("60/minute")
-async def get_outcomes(request: Request):
-    outcomes = await asyncio.to_thread(run_db.get_outcomes_all)
+async def get_outcomes(request: Request, current_user: dict = Depends(get_current_user)):
+    outcomes = await asyncio.to_thread(run_db.get_outcomes_all, current_user["user_id"])
 
     if not outcomes:
         return {"outcomes": [], "accuracy": None, "interview_accuracy": None, "total": 0}
@@ -990,8 +954,9 @@ async def delete_result(request: Request, result_id: str, current_user: dict = D
 
 @router.post("/results/{result_id}/evals")
 @limiter.limit("10/minute")
-async def run_result_evals(request: Request, result_id: str, req: RunEvalsRequest):
-    record = await asyncio.to_thread(run_db.get_run, result_id)
+async def run_result_evals(request: Request, result_id: str, req: RunEvalsRequest,
+                           current_user: dict = Depends(get_current_user)):
+    record = await asyncio.to_thread(run_db.get_run, result_id, current_user["user_id"])
     if not record:
         raise HTTPException(status_code=404, detail=f"Result {result_id!r} not found")
 
@@ -1003,6 +968,7 @@ async def run_result_evals(request: Request, result_id: str, req: RunEvalsReques
         raise HTTPException(status_code=422, detail="Stored result has no resume text or pipeline data")
 
     model = req.model or (pipeline_result.get("metadata", {}).get("model_used") or _analyser_cfg.default_model)
+    ev_cfg = get_api_config(req.api_key, req.api_base_url, model)      # validates api_base_url
 
     try:
         eval_results = await judge_engine.run_evals(
@@ -1010,11 +976,12 @@ async def run_result_evals(request: Request, result_id: str, req: RunEvalsReques
             resume_text=resume_text,
             job_description=job_description,
             llm_model=model,
-            api_key=req.api_key,
-            api_base_url=req.api_base_url,
+            api_key=ev_cfg["api_key"],
+            api_base_url=ev_cfg["api_base_url"],
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("run_evals failed")
+        raise HTTPException(status_code=500, detail="Evaluation failed. Please try again.")
 
     return {"result_id": result_id, "model": model, "evals": eval_results}
 
@@ -1023,7 +990,7 @@ async def run_result_evals(request: Request, result_id: str, req: RunEvalsReques
 
 @router.get("/judge_calibration")
 @limiter.limit("60/minute")
-async def judge_calibration(request: Request):
+async def judge_calibration(request: Request, current_user: dict = Depends(get_current_user)):
     from analysers.weights import FEEDBACK_FILE
     feedback = []
     try:
@@ -1060,5 +1027,5 @@ async def judge_calibration(request: Request):
 
 @router.get("/judge_weights")
 @limiter.limit("60/minute")
-async def judge_weights(request: Request):
-    return compute_learned_weights()
+async def judge_weights(request: Request, current_user: dict = Depends(get_current_user)):
+    return await run_blocking(compute_learned_weights, timeout=10.0)

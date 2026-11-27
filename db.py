@@ -14,11 +14,11 @@ import queue
 import sqlite3
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 DB_PATH = os.getenv(
     "HIREABLE_DB_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "runs.db"),
+    os.path.join(__import__("paths").STATE_DIR, "runs.db"),
 )
 _POOL_SIZE = int(os.getenv("HIREABLE_DB_POOL_SIZE", "4"))
 _POOL_TIMEOUT = 30.0
@@ -52,7 +52,9 @@ class _SQLitePool:
         """Acquire a connection, run fn(conn) inside BEGIN/COMMIT, return result."""
         conn = self.acquire()
         try:
-            conn.execute("BEGIN")
+            # IMMEDIATE takes the write lock up front. A deferred BEGIN that reads and then
+            # writes can hit SQLITE_BUSY on lock upgrade *without* honouring the busy timeout.
+            conn.execute("BEGIN IMMEDIATE")
             result = fn(conn)
             conn.commit()
             return result
@@ -193,6 +195,9 @@ def init_db():
             ("jobs",     "user_id",           "TEXT"),
             ("outcomes", "interview_stage",   "TEXT"),
             ("outcomes", "rejection_reason",  "TEXT"),
+            ("outcomes", "user_id",           "TEXT"),
+            ("runs",     "status",            "TEXT DEFAULT 'complete'"),
+            ("runs",     "pipeline_version",  "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {defn}")
@@ -311,24 +316,40 @@ def get_jobs(user_id: str) -> list[dict]:
     return [{**dict(r), "applied": bool(r["applied"])} for r in rows]
 
 
-def get_skill_frequencies() -> dict[str, int]:
-    """Count how many jobs in the table require each skill (comma-separated skills_required field)."""
+def get_skill_demand(user_id: str | None = None) -> tuple[dict[str, int], int]:
+    """Return ({skill: number of jobs requiring it}, number_of_jobs).
+
+    Scoped to `user_id` when given. (It used to read EVERY user's jobs, so one account
+    could change the skill weights - and therefore the scores - of all others.) Returns
+    ({}, n) when there are fewer than cfg.min_jobs_for_frequency postings: a handful of
+    jobs says nothing about market demand."""
     from collections import Counter
+    from analysers.config import cfg
     pool = _get_pool()
     conn = pool.acquire()
     try:
-        rows = conn.execute(
-            "SELECT skills_required FROM jobs WHERE skills_required IS NOT NULL AND skills_required != ''"
-        ).fetchall()
+        sql = "SELECT skills_required FROM jobs WHERE skills_required IS NOT NULL AND skills_required != ''"
+        params: tuple = ()
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params = (str(user_id),)
+        rows = conn.execute(sql, params).fetchall()
     finally:
         pool.release(conn)
+    n_jobs = len(rows)
+    if n_jobs < cfg.min_jobs_for_frequency:
+        return {}, n_jobs
     counts: Counter = Counter()
     for row in rows:
-        for skill in row["skills_required"].split(","):
-            s = skill.strip().lower()
-            if s:
-                counts[s] += 1
-    return dict(counts)
+        # a skill listed twice in one posting still counts once for that posting
+        for skill in {x.strip().lower() for x in row["skills_required"].split(",") if x.strip()}:
+            counts[skill] += 1
+    return dict(counts), n_jobs
+
+
+def get_skill_frequencies(user_id: str | None = None) -> dict[str, int]:
+    """Back-compat wrapper around get_skill_demand()."""
+    return get_skill_demand(user_id)[0]
 
 
 def get_all_jobs() -> list[dict]:
@@ -410,6 +431,9 @@ def save_run(run_id: str, model: str, resume_text: str, job_desc: str,
     coach          = pipeline_result.get("coach", {})
     coach_recs     = (coach.get("data") or {}).get("improvement_analysis", []) if coach.get("success") else []
 
+    run_status = overall.get("status") or "complete"
+    run_version = overall.get("pipeline_version")
+
     def _write(conn):
         conn.execute("""
             INSERT OR REPLACE INTO runs
@@ -454,6 +478,8 @@ def save_run(run_id: str, model: str, resume_text: str, job_desc: str,
             json.dumps(impact_data.get("unquantified_statements", [])),
             json.dumps(coach_recs),
         ))
+        conn.execute("UPDATE runs SET status=?, pipeline_version=? WHERE id=?",
+                     (run_status, run_version, run_id))
 
     _get_pool().execute_tx(_write)
 
@@ -569,12 +595,20 @@ def get_run(run_id: str, user_id: str = "") -> dict | None:
 
 # ── Score cache ───────────────────────────────────────────────────────────────
 
-def get_cached_run_id(cache_key: str) -> str | None:
+def get_cached_run_id(cache_key: str, max_age_days: float | None = None) -> str | None:
+    """Return a cached run id, honouring a TTL and ignoring runs that were not complete."""
+    if max_age_days is None:
+        max_age_days = float(os.getenv("SCORE_CACHE_TTL_DAYS", "30"))
+    cutoff = (datetime.utcnow() - timedelta(days=max_age_days)).isoformat()
     pool = _get_pool()
     conn = pool.acquire()
     try:
         row = conn.execute(
-            "SELECT run_id FROM score_cache WHERE cache_key=?", (cache_key,)
+            """SELECT c.run_id FROM score_cache c
+               JOIN runs r ON r.id = c.run_id
+               WHERE c.cache_key=? AND c.created_at >= ?
+                 AND COALESCE(r.status, 'complete') = 'complete'""",
+            (cache_key, cutoff),
         ).fetchone()
     finally:
         pool.release(conn)
@@ -595,13 +629,22 @@ def set_cached_run(cache_key: str, run_id: str, user_id: str = "") -> None:
 def save_outcome(result_id: str, predicted_score: float,
                  got_job: bool | None, got_interview: bool | None,
                  interview_stage: str | None = None,
-                 rejection_reason: str | None = None) -> None:
+                 rejection_reason: str | None = None,
+                 user_id: str = "") -> bool:
+    """Store an outcome. Returns True if this is the first outcome for (user, run)."""
     def _insert(conn):
+        # One outcome per (user, run): re-submitting replaces rather than multiplying a
+        # single data point into many (which would let one user steer learned weights).
+        existed = conn.execute(
+            "SELECT 1 FROM outcomes WHERE result_id=? AND COALESCE(user_id,'')=?",
+            (result_id, user_id)).fetchone() is not None
+        conn.execute("DELETE FROM outcomes WHERE result_id=? AND COALESCE(user_id,'')=?",
+                     (result_id, user_id))
         conn.execute(
             """INSERT INTO outcomes
                (result_id, predicted_score, got_job, got_interview,
-                interview_stage, rejection_reason, recorded_at)
-               VALUES (?,?,?,?,?,?,?)""",
+                interview_stage, rejection_reason, recorded_at, user_id)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (
                 result_id,
                 predicted_score,
@@ -610,18 +653,22 @@ def save_outcome(result_id: str, predicted_score: float,
                 interview_stage,
                 rejection_reason,
                 datetime.utcnow().isoformat(),
+                user_id,
             ),
         )
-    _get_pool().execute_tx(_insert)
+        return not existed
+    return _get_pool().execute_tx(_insert)
 
 
-def get_outcomes_all() -> list[dict]:
+def get_outcomes_all(user_id: str | None = None) -> list[dict]:
     pool = _get_pool()
     conn = pool.acquire()
     try:
-        rows = conn.execute(
-            "SELECT * FROM outcomes ORDER BY recorded_at DESC"
-        ).fetchall()
+        if user_id is None:
+            rows = conn.execute("SELECT * FROM outcomes ORDER BY recorded_at DESC").fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM outcomes WHERE user_id=? ORDER BY recorded_at DESC",
+                                (user_id,)).fetchall()
     finally:
         pool.release(conn)
     return [

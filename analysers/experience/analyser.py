@@ -6,7 +6,7 @@ from analysers.experience import prompts
 def score(analyser_output: dict) -> dict:
     analysis = analyser_output.get("responsibility_analysis", [])
     if not analysis:
-        return {"score": 0.0, "met": 0, "partial": 0, "unmet": 0, "total": 0,
+        return {"scorable": False, "score": 0.0, "met": 0, "partial": 0, "unmet": 0, "total": 0,
                 "unmet_responsibilities": []}
     total = len(analysis)
     met     = sum(1 for r in analysis if r.get("experience_score", 0) >= 0.75)
@@ -16,6 +16,7 @@ def score(analyser_output: dict) -> dict:
                   if r.get("experience_score", 0) < 0.25]
     raw_score = (met + 0.5 * partial) / total if total else 0.0
     return {
+        "scorable": True,
         "score": round(raw_score, 3),
         "met": met, "partial": partial, "unmet": unmet,
         "total": total, "unmet_responsibilities": unmet_list,

@@ -3,14 +3,17 @@ import logging
 import os
 import re
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+import asyncio
 
-limiter = Limiter(key_func=get_remote_address)
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+
+from ratelimit import limiter
 from pydantic import BaseModel, field_validator
 from typing import Literal
 
+from auth_utils import get_current_user
+from concurrency import run_blocking
+from net_safety import UnsafeURLError, resolve_public, safe_get
 from routers.deps import BASE_DIR, get_free_model, strip_html, score_ats, ats_to_dict
 
 logger = logging.getLogger(__name__)
@@ -178,14 +181,16 @@ async def client_config(request: Request):
 
 @router.post("/ats-check")
 @limiter.limit("20/minute")
-async def ats_check(request: Request, req: AtsCheckRequest):
+async def ats_check(request: Request, req: AtsCheckRequest,
+                    current_user: dict = Depends(get_current_user)):
     result = score_ats(req.resume_text, req.job_description)
     return ats_to_dict(result)
 
 
 @router.post("/ats-deep-audit")
 @limiter.limit("10/minute")
-async def ats_deep_audit(request: Request, req: AtsDeepAuditRequest):
+async def ats_deep_audit(request: Request, req: AtsDeepAuditRequest,
+                         current_user: dict = Depends(get_current_user)):
     from analysers.base import call_llm_async, parse_and_validate
     from routers.deps import get_llm_api_key, get_free_model
 
@@ -254,7 +259,8 @@ Scoring rules:
 
 @router.post("/skill-match")
 @limiter.limit("20/minute")
-async def skill_match(request: Request, req: SkillMatchRequest):
+async def skill_match(request: Request, req: SkillMatchRequest,
+                      current_user: dict = Depends(get_current_user)):
     paths = _load_income_paths()
     resume_tokens = _extract_resume_skill_tokens(req.resume_text)
 
@@ -292,61 +298,104 @@ async def skill_match(request: Request, req: SkillMatchRequest):
     return {"matches": matches[:10], "total_paths": len(paths)}
 
 
-@router.post("/extract-pdf")
-@limiter.limit("30/minute")
-async def extract_pdf(request: Request, file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+def _is_sparse_text(text: str) -> bool:
+    tokens = text.split()
+    if not tokens:
+        return True
+    single_char_ratio = sum(1 for t in tokens if len(t) == 1) / len(tokens)
+    return len(text.strip()) < 100 or single_char_ratio > 0.4
 
+
+def _extract_pdf_text_blocking(contents: bytes, max_pages: int) -> tuple[str, str, int]:
+    """CPU-bound PDF text extraction. Runs in the blocking pool, never on the event loop.
+    Returns (text, method, page_count). Raises ValueError if the PDF exceeds max_pages."""
     from io import BytesIO
-    contents = await file.read()
     full_text = ""
     extraction_method = "pypdf"
+    page_count = 0
 
     try:
         from pypdf import PdfReader
         reader = PdfReader(BytesIO(contents))
+        page_count = len(reader.pages)
+        if page_count > max_pages:
+            raise ValueError(f"PDF has {page_count} pages; the limit is {max_pages}.")
         pages = [page.extract_text() or "" for page in reader.pages]
         full_text = "\n\n".join(p.strip() for p in pages if p.strip())
+    except ValueError:
+        raise
     except Exception as e:
         logger.warning("pypdf extraction failed: %s", e)
 
-    def _is_sparse(text: str) -> bool:
-        tokens = text.split()
-        if not tokens:
-            return True
-        single_char_ratio = sum(1 for t in tokens if len(t) == 1) / len(tokens)
-        return len(text.strip()) < 100 or single_char_ratio > 0.4
-
-    if full_text and not _is_sparse(full_text):
+    if full_text and not _is_sparse_text(full_text):
         tokens = full_text.split()
         if tokens and sum(1 for t in tokens if len(t) == 1) / len(tokens) > 0.4:
             full_text = re.sub(r'(?<=[A-Za-z0-9.,@]) (?=[A-Za-z0-9.,@])', '', full_text)
 
-    if _is_sparse(full_text):
+    if _is_sparse_text(full_text):
         try:
             from pdfminer.high_level import extract_text as pdfminer_extract
-            full_text = pdfminer_extract(BytesIO(contents)) or ""
+            full_text = pdfminer_extract(BytesIO(contents), maxpages=max_pages) or ""
             extraction_method = "pdfminer"
-            logger.info("pypdf sparse — fell back to pdfminer")
+            logger.info("pypdf sparse - fell back to pdfminer")
         except ImportError:
-            logger.warning("pdfminer not installed — skipping pdfminer fallback")
+            logger.warning("pdfminer not installed - skipping pdfminer fallback")
         except Exception as e:
             logger.warning("pdfminer extraction failed: %s", e)
 
-    if _is_sparse(full_text):
+    if _is_sparse_text(full_text):
         try:
             import pytesseract
             from pdf2image import convert_from_bytes
-            images = convert_from_bytes(contents, dpi=200)
+            images = convert_from_bytes(contents, dpi=200, last_page=max_pages)
             ocr_pages = [pytesseract.image_to_string(img) for img in images]
             full_text = "\n\n".join(p.strip() for p in ocr_pages if p.strip())
             extraction_method = "ocr"
-            logger.info("Fell back to OCR — extracted %d chars from %d pages", len(full_text), len(images))
+            logger.info("Fell back to OCR - extracted %d chars from %d pages", len(full_text), len(images))
         except ImportError:
-            logger.warning("pytesseract/pdf2image not installed — OCR fallback unavailable")
+            logger.warning("pytesseract/pdf2image not installed - OCR fallback unavailable")
         except Exception as e:
             logger.warning("OCR extraction failed: %s", e)
+
+    return full_text, extraction_method, page_count
+
+
+MAX_PDF_BYTES = int(os.getenv("MAX_PDF_BYTES", str(5 * 1024 * 1024)))
+MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "30"))
+
+
+async def _read_capped(file: UploadFile, limit: int) -> bytes:
+    """Read an upload without ever holding more than limit+1 bytes."""
+    buf = bytearray()
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > limit:
+            raise HTTPException(status_code=413,
+                                detail=f"File too large; limit is {limit // (1024 * 1024)} MB.")
+    return bytes(buf)
+
+
+@router.post("/extract-pdf")
+@limiter.limit("30/minute")
+async def extract_pdf(request: Request, file: UploadFile = File(...),
+                      current_user: dict = Depends(get_current_user)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+
+    contents = await _read_capped(file, MAX_PDF_BYTES)
+    if not contents.lstrip()[:5] == b"%PDF-":
+        raise HTTPException(status_code=400, detail="File is not a valid PDF")
+    try:
+        full_text, extraction_method, page_count = await run_blocking(
+            _extract_pdf_text_blocking, contents, MAX_PDF_PAGES, timeout=45.0
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=413, detail=str(e))
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=422, detail="PDF took too long to process.")
 
     if not full_text.strip():
         raise HTTPException(
@@ -481,7 +530,6 @@ Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
     except Exception:
         pass
 
-    page_count = len(reader.pages) if 'reader' in dir() else len(full_text.split('\n\n'))
 
     return {
         "text":              full_text,
@@ -497,13 +545,16 @@ Return exactly: {{"name": "...", "title": "...", "skills": "..."}}"""
 
 @router.post("/fetch-job-url")
 @limiter.limit("30/minute")
-async def fetch_job_url(request: Request, req: FetchJobURLRequest):
-    import httpx
+async def fetch_job_url(request: Request, req: FetchJobURLRequest,
+                        current_user: dict = Depends(get_current_user)):
     from bs4 import BeautifulSoup
 
     url = req.url.strip()
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    # SSRF guard: scheme/port/host checks + every resolved address must be public.
+    try:
+        await resolve_public(url)
+    except UnsafeURLError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     _BROWSER_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -514,12 +565,14 @@ async def fetch_job_url(request: Request, req: FetchJobURLRequest):
     # ── Tier 1: static fetch ──────────────────────────────────────────────────
     html = ""
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-            resp = await client.get(url, headers=_BROWSER_HEADERS)
+        # Pinned-IP fetch, manual redirect re-validation, 2 MB body cap.
+        resp = await safe_get(url, headers=_BROWSER_HEADERS, timeout=15)
         if resp.status_code == 200:
             html = resp.text
         else:
             logger.warning("Static fetch HTTP %d for %s", resp.status_code, url)
+    except UnsafeURLError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.warning("Static fetch failed: %s", e)
 
@@ -594,6 +647,27 @@ async def fetch_job_url(request: Request, req: FetchJobURLRequest):
                 )
                 page = await context.new_page()
 
+                # The browser follows redirects and loads sub-resources on its own, so
+                # every request it makes is checked against the same SSRF policy.
+                _host_ok: dict[str, bool] = {}
+                async def _guard(route):
+                    req_url = route.request.url
+                    if req_url.startswith(("data:", "blob:", "about:")):
+                        await route.continue_()
+                        return
+                    host = req_url.split("/")[2] if "//" in req_url else req_url
+                    if host not in _host_ok:
+                        try:
+                            await resolve_public(req_url)
+                            _host_ok[host] = True
+                        except UnsafeURLError:
+                            _host_ok[host] = False
+                    if _host_ok[host]:
+                        await route.continue_()
+                    else:
+                        await route.abort("blockedbyclient")
+                await context.route("**/*", _guard)
+
                 # Intercept XHR/fetch responses that look like job API payloads
                 api_responses: list[str] = []
                 async def _handle_response(response):
@@ -630,7 +704,7 @@ async def fetch_job_url(request: Request, req: FetchJobURLRequest):
                     except Exception:
                         pass
 
-                html = await page.content()
+                html = (await page.content())[:2_000_000]
 
                 # Re-check JSON-LD after JS rendered the page
                 if not jsonld:
@@ -805,7 +879,8 @@ Return exactly: {{"title": "...", "company": "...", "experience_required": "..."
 
 @router.post("/parse-jd-text")
 @limiter.limit("30/minute")
-async def parse_jd_text(request: Request, req: ParseJDTextRequest):
+async def parse_jd_text(request: Request, req: ParseJDTextRequest,
+                        current_user: dict = Depends(get_current_user)):
     raw_text   = req.text.strip()[:15000]
     structured = {"title": "", "company": "", "experience_required": "", "skills_required": "", "job_description": raw_text}
     try:

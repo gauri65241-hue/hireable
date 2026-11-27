@@ -40,6 +40,17 @@ judge_engine  = AnalyserEngine()
 _analyze_sem  = asyncio.Semaphore(_analyser_cfg.max_concurrent_analyses)
 
 
+def make_cache_key(user_id: str, resume_text: str, job_description: str,
+                   model: str, weights: dict | None) -> str:
+    """Everything that can change a score must be in the key, otherwise a stale result
+    is served after a model / weights / prompt / pipeline change."""
+    import hashlib
+    from analysers.engine import PIPELINE_VERSION
+    sig = json.dumps(weights or {}, sort_keys=True)
+    payload = "\x1f".join([PIPELINE_VERSION, user_id, model or "", sig, resume_text, job_description])
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def get_llm_api_key() -> str:
     return os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
 
@@ -57,6 +68,32 @@ def _get_model_key(model_name: str) -> str:
     return ""
 
 
+def _is_local_ollama_host(url: str) -> bool:
+    """Exact-hostname match. (The old substring test also matched http://evil.com/localhost.)"""
+    from urllib.parse import urlsplit
+    try:
+        return (urlsplit(url or "").hostname or "") in {"localhost", "127.0.0.1", "::1"}
+    except ValueError:
+        return False
+
+
+def _validate_custom_base_url(url: str) -> str:
+    """A caller-supplied LLM base URL makes this server POST resume text to that URL.
+    Require https + a public address, and optionally an explicit host allow-list
+    (ALLOWED_API_HOSTS=openrouter.ai,api.openai.com)."""
+    from urllib.parse import urlsplit
+    from fastapi import HTTPException
+    from net_safety import UnsafeURLError, validate_public_url
+    allow = {h.strip().lower() for h in os.getenv("ALLOWED_API_HOSTS", "").split(",") if h.strip()}
+    try:
+        host = (urlsplit(url).hostname or "").lower()
+        if allow and host not in allow:
+            raise UnsafeURLError("api_base_url host is not on the allow-list")
+        return validate_public_url(url, allowed_schemes=("https",))
+    except UnsafeURLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid api_base_url: {e}")
+
+
 def get_api_config(request_api_key: str = "", request_api_base_url: str = "",
                    model: str = "") -> dict:
     """
@@ -67,10 +104,10 @@ def get_api_config(request_api_key: str = "", request_api_base_url: str = "",
       2. OPENROUTER_API_KEY in env — auto-route to OpenRouter with per-model key lookup.
       3. Fall back to local Ollama with no key.
     """
-    _local_ollama = not request_api_key and any(
-        h in (request_api_base_url or "") for h in ("localhost", "127.0.0.1")
-    )
+    _local_ollama = not request_api_key and _is_local_ollama_host(request_api_base_url)
     if (request_api_key or request_api_base_url) and not _local_ollama:
+        if request_api_base_url:
+            request_api_base_url = _validate_custom_base_url(request_api_base_url)
         return {
             "api_key":      request_api_key,
             "api_base_url": request_api_base_url,

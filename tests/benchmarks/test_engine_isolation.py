@@ -23,7 +23,7 @@ def test_successful_judge_returns_success():
     def _score(data):
         return {"score": data.get("score_raw", 0.0), "missing_skills": []}
 
-    status, raw, scores, err = asyncio.run(_run_judge_timed("skills", _ok(), _score))
+    status, raw, scores, err, _ms = asyncio.run(_run_judge_timed("skills", _ok(), _score))
     assert status == "success"
     assert err is None
     assert scores["score"] == 0.8
@@ -36,7 +36,7 @@ def test_failed_judge_returns_failed():
     def _score(data):
         return {"score": 0.0}
 
-    status, raw, scores, err = asyncio.run(_run_judge_timed("skills", _fail(), _score))
+    status, raw, scores, err, _ms = asyncio.run(_run_judge_timed("skills", _fail(), _score))
     assert status == "failed"
     assert "crashed" in err
     assert scores == {}
@@ -49,7 +49,7 @@ def test_exception_in_judge_returns_failed():
     def _score(data):
         return {"score": 0.0}
 
-    status, raw, scores, err = asyncio.run(_run_judge_timed("skills", _crash(), _score))
+    status, raw, scores, err, _ms = asyncio.run(_run_judge_timed("skills", _crash(), _score))
     assert status == "failed"
     assert "GPU error" in err
     assert scores == {}
@@ -67,7 +67,7 @@ def test_timeout_judge_returns_timeout():
     original = eng.JUDGE_TIMEOUT_S
     eng.JUDGE_TIMEOUT_S = 0.05
     try:
-        status, raw, scores, err = asyncio.run(_run_judge_timed("skills", _slow(), _score))
+        status, raw, scores, err, _ms = asyncio.run(_run_judge_timed("skills", _slow(), _score))
         assert status == "timeout"
         assert "timed out" in err
     finally:

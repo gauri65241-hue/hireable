@@ -10,9 +10,13 @@ import math
 import os
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter()
+from auth_utils import require_admin
+
+# Every benchmark route launches LLM runs (cost / GPU) or exposes run internals:
+# admin-only, fail-closed when ADMIN_EMAILS is unset.
+router = APIRouter(dependencies=[Depends(require_admin)])
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

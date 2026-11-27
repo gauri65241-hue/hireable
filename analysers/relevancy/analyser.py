@@ -6,11 +6,12 @@ from analysers.relevancy import prompts
 def score(analyser_output: dict) -> dict:
     analysis = analyser_output.get("statement_analysis", [])
     if not analysis:
-        return {"score": 0.0, "relevant": 0, "irrelevant": 0, "total": 0, "irrelevant_statements": []}
+        return {"scorable": False, "score": 0.0, "relevant": 0, "irrelevant": 0, "total": 0, "irrelevant_statements": []}
     total = len(analysis)
     relevant = sum(1 for s in analysis if s.get("is_relevant") == 1)
     irrelevant = [s.get("resume_statement") for s in analysis if s.get("is_relevant") == 0]
     return {
+        "scorable": True,
         "score": round(relevant / total, 3) if total else 0.0,
         "relevant": relevant, "irrelevant": total - relevant,
         "total": total, "irrelevant_statements": irrelevant,

@@ -6,11 +6,12 @@ from analysers.seniority import prompts
 def score(analyser_output: dict) -> dict:
     analysis = analyser_output.get("seniority_analysis", [])
     if not analysis:
-        return {"score": 0.0, "demonstrated": 0, "absent": 0, "total": 0, "absent_signals": [], "red_flags": []}
+        return {"scorable": False, "score": 0.0, "demonstrated": 0, "absent": 0, "total": 0, "absent_signals": [], "red_flags": []}
     total = len(analysis)
     demonstrated = sum(1 for s in analysis if s.get("is_demonstrated") == 1)
     absent = [s.get("signal", "unknown") for s in analysis if s.get("is_demonstrated") == 0]
     return {
+        "scorable": True,
         "score": round(demonstrated / total, 3) if total else 0.0,
         "demonstrated": demonstrated, "absent": total - demonstrated,
         "total": total, "absent_signals": absent,
