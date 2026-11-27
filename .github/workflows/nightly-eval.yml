@@ -1,0 +1,48 @@
+name: Nightly real-model evaluation
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model id (OpenRouter slug)"
+        default: "meta-llama/llama-3.1-8b-instruct"
+      repeats:
+        description: "Repeats per case (stability)"
+        default: "3"
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --upgrade pip && pip install -r requirements.txt
+      - name: Evaluate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ALLOWED_API_HOSTS: openrouter.ai
+        run: |
+          BASELINE=""
+          [ -f benchmark/baseline.real.json ] && BASELINE="--baseline benchmark/baseline.real.json"
+          python -m benchmark.run --backend real \
+            --model "${{ github.event.inputs.model || 'meta-llama/llama-3.1-8b-instruct' }}" \
+            --api-base-url https://openrouter.ai/api/v1 \
+            --repeats "${{ github.event.inputs.repeats || '3' }}" \
+            --concurrency 4 --n-jds 6 --per-profile 3 $BASELINE \
+            --out benchmark_results.json --summary benchmark_summary.md
+      - name: Publish summary
+        if: always()
+        run: cat benchmark_summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-real-${{ github.run_id }}
+          path: |
+            benchmark_results.json
+            benchmark_summary.md
