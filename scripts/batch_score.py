@@ -39,6 +39,7 @@ Pre-registration block [DO NOT MODIFY after labeling begins]:
 import argparse
 import asyncio
 import json
+import tempfile
 import os
 import sys
 import time
@@ -65,7 +66,7 @@ from ats_checker import score_ats, ats_to_dict
 import db as run_db
 
 TAXONOMY_PATH     = ROOT / "data" / "skills_taxonomy.json"
-FAILURE_LOG       = Path("/tmp/batch_parse_failures.log")
+FAILURE_LOG       = Path(tempfile.gettempdir()) / "batch_parse_failures.log"
 MODEL             = "mistral-nemo:12b-instruct-2407-q4_K_M"
 
 with open(TAXONOMY_PATH) as _f:

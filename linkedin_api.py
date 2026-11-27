@@ -5,10 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from auth_utils import api_keys_match
+from ratelimit import limiter
 from routers.deps import get_llm_api_key, run_db
 from routers import admin, data, analysis, career, tools, benchmark, auth
 
@@ -27,8 +28,6 @@ async def lifespan(app: FastAPI):
     print("SQLite DB initialised.")
     yield
 
-
-limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title="hireable API", lifespan=lifespan)
 app.state.limiter = limiter
@@ -77,7 +76,7 @@ async def api_key_middleware(request: Request, call_next):
             status_code=401,
             content={"detail": "API key required. Send X-API-Key header."},
         )
-    if provided != api_key:
+    if not api_keys_match(provided, api_key):
         return JSONResponse(
             status_code=403,
             content={"detail": "Invalid API key."},
@@ -127,4 +126,5 @@ if os.path.isdir(_FRONTEND):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Binds all interfaces on purpose (container entrypoint); put it behind a reverse proxy.
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104

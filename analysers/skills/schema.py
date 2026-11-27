@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _STRENGTH_MAP = {
     "strong": "strong", "high": "strong",
@@ -40,3 +40,12 @@ class SkillsOutput(BaseModel):
     overall_reasoning: str = ""
     confidence_calculation: str = ""
     confidence: int = Field(default=0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def require_something_to_score(self):
+        # Truncated outputs may carry only `required_skills` + `present_skills` (score()
+        # reconstructs the rest, capped at partial credit); but a payload with neither
+        # skill_analysis nor required_skills has nothing to score and must fail.
+        if not self.skill_analysis and not self.required_skills:
+            raise ValueError("skill_analysis or required_skills must be non-empty")
+        return self

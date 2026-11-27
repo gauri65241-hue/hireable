@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class _ImpactItem(BaseModel):
@@ -22,3 +22,12 @@ class ImpactOutput(BaseModel):
     impact_analysis: list[_ImpactItem] = Field(default_factory=list)
     overall_reasoning: str = ""
     confidence: int = Field(default=0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def require_non_empty_analysis(self):
+        # An output with nothing to score must FAIL validation. Previously every field
+        # defaulted, so `{}` or `{"foo": 1}` validated as a "successful" empty result,
+        # scored 0.0 and counted at full weight.
+        if not self.impact_analysis:
+            raise ValueError("impact_analysis must contain at least one item")
+        return self

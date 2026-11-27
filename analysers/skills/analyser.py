@@ -94,13 +94,16 @@ def _skill_weight(skill_name: str, frequencies: dict, total_jobs: int) -> float:
     Return a demand weight in [1.0, 2.0].
     Skills absent from the jobs table get 1.0 (neutral).
     Skills required by every job get 2.0 (double penalised when missing).
+    `total_jobs` must be the NUMBER OF JOBS. (It used to be sum(frequencies.values()) -
+    the total of all skill counts - which made every weight ~1.0.)
     """
     if not frequencies or not total_jobs:
         return 1.0
-    return 1.0 + (frequencies.get(skill_name.lower(), 0) / total_jobs)
+    return 1.0 + min(1.0, frequencies.get(skill_name.lower(), 0) / total_jobs)
 
 
-def score(analyser_output: dict, skill_frequencies: dict | None = None) -> dict:
+def score(analyser_output: dict, skill_frequencies: dict | None = None,
+          total_jobs: int | None = None) -> dict:
     analysis = list(analyser_output.get("skill_analysis", []))
     required = analyser_output.get("required_skills", [])
     present_set = set(analyser_output.get("present_skills", []))
@@ -112,22 +115,28 @@ def score(analyser_output: dict, skill_frequencies: dict | None = None) -> dict:
         analysed = {item.get("skill", item.get("skill_requirement", "")) for item in analysis}
         for skill in required:
             if skill not in analysed:
+                # Reconstructed entries have no verified evidence quote, so even a skill
+                # the model claims is present earns at most PARTIAL credit (weak => 0.5).
                 analysis.append({
                     "skill": skill,
                     "is_present": 1 if skill in present_set else 0,
-                    "evidence_strength": "synthesized",
+                    "evidence_strength": "weak",
+                    "synthesized": True,
                 })
 
     if not analysis:
-        return {"score": 0.0, "present": 0, "missing": 0, "total": 0, "missing_skills": []}
+        return {"scorable": False, "score": 0.0, "present": 0, "missing": 0, "total": 0, "missing_skills": []}
 
     from analysers.skills.semantic_filter import filter_and_reclassify
     analysis = filter_and_reclassify(analysis)
 
     if not analysis:
-        return {"score": 0.0, "present": 0, "missing": 0, "total": 0, "missing_skills": []}
+        return {"scorable": False, "score": 0.0, "present": 0, "missing": 0, "total": 0, "missing_skills": []}
 
-    total_jobs = sum(skill_frequencies.values()) if skill_frequencies else 0
+    if skill_frequencies and not total_jobs:
+        # Callers that know the real job count pass it. Otherwise the most-demanded skill's
+        # count is the best available lower bound on it.
+        total_jobs = max(skill_frequencies.values())
 
     total = len(analysis)
     present = 0
@@ -168,6 +177,7 @@ def score(analyser_output: dict, skill_frequencies: dict | None = None) -> dict:
         computed_score = round((present + 0.5 * partial) / total, 3) if total else 0.0
 
     out = {
+        "scorable": True,
         "score": computed_score,
         "present": present, "partial": partial,
         "missing": total - present - partial,

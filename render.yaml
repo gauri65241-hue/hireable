@@ -15,6 +15,12 @@ services:
         value: openrouter/free
       - key: ALLOWED_ORIGINS
         sync: false          # set to your Render URL, e.g. https://hireable.onrender.com
+      - key: HIREABLE_STATE_DIR
+        value: /app/state
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"           # Render terminates TLS in one proxy; makes rate limits per-client
+      - key: ADMIN_EMAILS
+        sync: false          # comma-separated; empty = benchmark/admin routes disabled
       - key: RESUMES_CSV
         value: data/resumes.sample.csv
       - key: JOBS_CSV
@@ -23,8 +29,12 @@ services:
         value: data/skills_taxonomy.json
       - key: LABELS_CSV
         value: data/labels.csv
+    # NOTE: persistent disks require a paid Render instance type; `plan: free` has no disk,
+    # so on the free plan the DB, learned weights and JWT secret reset on every deploy.
+    # The disk is mounted at /app/state (NOT /app/data): a volume mounted over /app/data
+    # would hide the taxonomy and sample CSVs baked into the image.
     disk:
       name: hireable-data
-      mountPath: /app/data
+      mountPath: /app/state
       sizeGB: 1
     healthCheckPath: /health

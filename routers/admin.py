@@ -34,7 +34,7 @@ async def health_check():
             ollama_detail = f"HTTP {resp.status_code}"
     except Exception as e:
         ollama_status = "error"
-        ollama_detail = str(e)[:80]
+        ollama_detail = "unreachable"
 
     # OpenRouter status — read env directly; frozen cfg captures value at import time
     api_cfg = get_api_config()
@@ -50,7 +50,7 @@ async def health_check():
         db_detail = f"{len(runs)} recent run(s)"
     except Exception as e:
         db_status = "error"
-        db_detail = str(e)[:80]
+        db_detail = "error"
 
     overall = "healthy" if db_status == "connected" and (ollama_status == "connected" or openrouter_active) else "degraded"
 
@@ -109,7 +109,7 @@ async def list_ollama_models():
         ]
         return {"models": models, "default": "cogito:14b"}
     except Exception as e:
-        return {"models": ["cogito:14b"], "default": "cogito:14b", "error": str(e)}
+        return {"models": ["cogito:14b"], "default": "cogito:14b", "error": "model list unavailable"}
 
 
 @router.get("/", response_class=HTMLResponse)

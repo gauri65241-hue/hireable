@@ -6,7 +6,7 @@ from analysers.impact import prompts
 def score(analyser_output: dict) -> dict:
     analysis = analyser_output.get("impact_analysis", [])
     if not analysis:
-        return {"score": 0.0, "quantified": 0, "directional": 0, "unquantified": 0, "total": 0, "unquantified_statements": []}
+        return {"scorable": False, "score": 0.0, "quantified": 0, "directional": 0, "unquantified": 0, "total": 0, "unquantified_statements": []}
     total = len(analysis)
     quantified = sum(1 for s in analysis if s.get("is_quantified") == 1)
     directional = sum(1 for s in analysis if s.get("is_quantified") == 0.5)
@@ -15,6 +15,7 @@ def score(analyser_output: dict) -> dict:
         for s in analysis if s.get("is_quantified") == 0
     ]
     return {
+        "scorable": True,
         "score": round((quantified + 0.5 * directional) / total, 3) if total else 0.0,
         "quantified": quantified, "directional": directional,
         "unquantified": total - quantified - directional,

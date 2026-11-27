@@ -272,3 +272,7 @@ Real resume/job data is gitignored. Only fake sample files ship with the repo.
 | `data/jobs.sample.csv` | Format reference — fake data |
 | `data/skills_taxonomy.json` | Skill domain token mapping |
 | `data/income_paths.json` | 20 income paths with required skills |
+
+## Hardening & evaluation
+
+See [docs/HARDENING.md](docs/HARDENING.md) for the security/reliability changes and new settings, and [benchmark/README.md](benchmark/README.md) for the evaluation harness (`python -m benchmark.run --backend fake`).

@@ -11,6 +11,10 @@ logger = logging.getLogger("AnalyserEngine")
 
 from analysers.config import cfg
 
+# Bump on any change to prompts, scoring, gates or weights: it is part of the result-cache
+# key, so stale results are never served across a behaviour change.
+PIPELINE_VERSION = "2.1.0"
+
 _SKILLS_GATE_THRESHOLD = cfg.skills_gate_threshold
 DEFAULT_WEIGHTS = cfg.default_weights
 
@@ -40,11 +44,11 @@ _CONTRADICTION_PAIRS = [
         "condition": lambda s: s.get("skills", 0) >= 0.75 and s.get("experience", 0) <= 0.25,
         "rerun": "experience",
         "msg": (
-            "ARBITRATION CONTEXT: The skills judge scored this candidate at 75%+ but the experience "
-            "judge scored them at 25% or below. This divergence is statistically unusual. "
-            "Re-evaluate experience — look for implicit role-match evidence: progression patterns, "
-            "transferred competencies from adjacent roles, and scope signals that may have been "
-            "scored too strictly against the JD's exact wording. Do not require verbatim JD language."
+            "ARBITRATION CONTEXT: The skills and experience judges strongly disagree on this "
+            "candidate (skills 75%+, experience 25% or below). Re-evaluate experience strictly "
+            "against the resume text: for each responsibility either quote exact supporting text "
+            "or mark it unmet. Do not infer experience that is not written. If your first "
+            "judgement was correct, keep it."
         ),
     },
     {
@@ -52,10 +56,11 @@ _CONTRADICTION_PAIRS = [
         "condition": lambda s: s.get("experience", 0) >= 0.70 and s.get("skills", 0) <= 0.25,
         "rerun": "skills",
         "msg": (
-            "ARBITRATION CONTEXT: The experience judge scored this candidate at 70%+ but the skills "
-            "judge scored them at 25% or below. Candidates with deep experience depth often demonstrate "
-            "skills implicitly through their work history — check job titles, project descriptions, and "
-            "responsibility statements for implied technical competencies before marking them MISSING."
+            "ARBITRATION CONTEXT: The experience and skills judges strongly disagree on this "
+            "candidate (experience 70%+, skills 25% or below). Re-evaluate skills strictly: for "
+            "each required skill either quote exact resume text or mark it MISSING. Do not infer a "
+            "skill from a job title or from general experience depth. Keep your original "
+            "judgement wherever you cannot quote evidence."
         ),
     },
     {
@@ -63,11 +68,11 @@ _CONTRADICTION_PAIRS = [
         "condition": lambda s: s.get("relevancy", 0) >= 0.80 and s.get("seniority", 0) <= 0.15,
         "rerun": "seniority",
         "msg": (
-            "ARBITRATION CONTEXT: The relevancy judge scored this candidate at 80%+ but seniority "
-            "scored them at 15% or below. A highly domain-relevant candidate with near-zero seniority "
-            "signals is rare and likely indicates missed evidence. Re-check for scale, ownership, "
-            "complexity, and leadership signals — they may appear in job titles, team sizes, budget "
-            "figures, or scope descriptions rather than explicit 'led a team of N' statements."
+            "ARBITRATION CONTEXT: The relevancy and seniority judges strongly disagree on this "
+            "candidate (relevancy 80%+, seniority 15% or below). Re-check the seniority signals "
+            "(scale, ownership, complexity, leadership) against the resume text: demonstrate each "
+            "with an exact quote or mark it absent. Do not assume signals that are not written. "
+            "If your first judgement was correct, keep it."
         ),
     },
 ]
@@ -85,34 +90,30 @@ def calculate_overall(s: dict, e: dict, sr: dict, rel: dict, imp: dict,
         + imp["score"] * w["impact"]
     )
     gate = False
-    if (
-        skills_gate_enabled
-        and sk < _SKILLS_GATE_THRESHOLD
-    ):
-        cap = sk * 0.4
-        if overall > cap:
+    if skills_gate_enabled:
+        if sk < _SKILLS_GATE_THRESHOLD:
+            cap = sk * 0.4
+        elif cfg.skills_gate_ramp_upper and sk < cfg.skills_gate_ramp_upper:
+            # Optional continuous ramp (off by default). The hard gate alone is a cliff:
+            # skills 0.39 caps overall at 0.156 while skills 0.41 is uncapped (~0.8 if the
+            # other four dimensions are strong). The ramp rises linearly from the gate's cap
+            # at the threshold to 1.0 at `skills_gate_ramp_upper`.
+            lo = _SKILLS_GATE_THRESHOLD * 0.4
+            frac = (sk - _SKILLS_GATE_THRESHOLD) / (cfg.skills_gate_ramp_upper - _SKILLS_GATE_THRESHOLD)
+            cap = lo + frac * (1.0 - lo)
+        else:
+            cap = None
+        if cap is not None and overall > cap:
             overall = cap
             gate = True
-    low_fit_cap = False
-    # If the three fit-oriented judges all agree the candidate has weak core
-    # evidence, do not let adjacent experience or generic impact lift them into
-    # Moderate. This targets Weak→Moderate leakage without touching candidates
-    # whose skills/relevancy/seniority show real role fit.
-    if (
-        sk < 0.25
-        and sr["score"] <= 0.25
-        and rel["score"] < 0.25
-        and len(s.get("missing_skills", [])) >= 4
-    ):
-        cap = 0.179
-        if overall > cap:
-            overall = cap
-            low_fit_cap = True
+    # NOTE: the former "low_fit_cap" (0.179) was unreachable whenever the gate was on
+    # (sk < 0.25 already implies a gate cap <= 0.10) and operated on placeholder zeros when
+    # the gate was off, so it was removed. The key is kept for response compatibility.
     return {
         "overall_score": round(overall, 3),
         "weights_used": w,
         "skills_gate_applied": gate,
-        "low_fit_cap_applied": low_fit_cap,
+        "low_fit_cap_applied": False,
         "component_scores": {
             "skills": sk, "experience": e["score"], "seniority": sr["score"],
             "relevancy": rel["score"], "impact": imp["score"],
@@ -127,7 +128,7 @@ def _safe(result, name: str) -> dict:
     return result
 
 
-async def _run_judge_timed(name: str, coro, score_fn) -> tuple[str, dict, dict, str | None, int]:
+async def _run_judge_timed(name: str, coro, score_fn, on_done=None) -> tuple[str, dict, dict, str | None, int]:
     """
     Wraps a judge coroutine with a hard timeout and structured error envelope.
     Returns (status, raw_result, score_dict, error_msg, elapsed_ms).
@@ -136,6 +137,16 @@ async def _run_judge_timed(name: str, coro, score_fn) -> tuple[str, dict, dict, 
     Callers must check status before trusting score_dict — a failed/timed-out
     judge returns empty scores, NOT meaningful zeros.
     """
+    res = await _run_judge_timed_inner(name, coro, score_fn)
+    if on_done is not None:
+        try:
+            on_done(name, *res)
+        except Exception:                                  # a broken listener must never fail a judge
+            logger.exception("on_done callback failed for %s", name)
+    return res
+
+
+async def _run_judge_timed_inner(name: str, coro, score_fn) -> tuple[str, dict, dict, str | None, int]:
     t0 = time.monotonic()
     try:
         raw = await asyncio.wait_for(coro, timeout=JUDGE_TIMEOUT_S)
@@ -145,6 +156,11 @@ async def _run_judge_timed(name: str, coro, score_fn) -> tuple[str, dict, dict, 
                          name, latency, raw.get("error", ""))
             return "failed", raw, {}, raw.get("error", "judge returned success=False"), latency
         scores = score_fn(raw.get("data", {}))
+        if scores.get("scorable") is False:
+            # Parsed fine but contained nothing to score. That is missing evidence, not
+            # evidence of a zero, so it must not enter the weighted sum.
+            logger.error("Judge %s produced no scorable items in %.0fms", name, latency)
+            return "failed", raw, {}, "judge output contained no scorable items", latency
         logger.info("Judge %s OK %.0fms score=%.1f%%",
                     name, latency, scores.get("score", 0) * 100)
         return "success", raw, scores, None, latency
@@ -176,39 +192,62 @@ async def _skipped_judge(name: str, reason: str) -> tuple[str, dict, dict, str, 
     return "skipped", {}, {}, reason, 0
 
 
+def _text_unreadable(text: str) -> bool:
+    """True when the extracted text is too broken for any judge to read: nearly empty,
+    mostly non-letters, or letter-spaced garbage ("J a n e  D o e") from a bad PDF
+    extraction. Deliberately script-agnostic (no English heading/verb assumptions)."""
+    t = text.strip()
+    if len(t) < 200:
+        return True
+    letters = sum(1 for ch in t if ch.isalpha())
+    if letters / len(t) < 0.45:
+        return True
+    tokens = t.split()
+    return bool(tokens) and sum(1 for tok in tokens if len(tok) == 1) / len(tokens) > 0.45
+
+
 def _ats_early_exit(ats_score: float) -> dict:
     reason = (
-        f"ATS score {ats_score:.0f}/100 is below threshold ({ATS_SKIP_THRESHOLD:.0f}). "
-        "Resume formatting needs fixes before LLM scoring is meaningful. "
-        "Review the ATS preflight issues above."
+        f"ATS score {ats_score:.0f}/100 and the extracted text is unreadable "
+        "(too short, mostly non-letters, or letter-spaced). Fix the resume file / extraction "
+        "before scoring. No score was produced."
     )
     skipped = {"success": False, "skipped": True}
-    z_sk  = {"score": 0.0, "present": 0, "partial": 0, "missing": 0, "total": 0, "missing_skills": []}
-    z_ex  = {"score": 0.0, "met": 0, "partial": 0, "unmet": 0, "total": 0, "unmet_responsibilities": []}
-    z_sr  = {"score": 0.0, "demonstrated": 0, "absent": 0, "total": 0, "absent_signals": [], "red_flags": []}
-    z_rel = {"score": 0.0, "relevant": 0, "irrelevant": 0, "total": 0, "irrelevant_statements": []}
-    z_imp = {"score": 0.0, "quantified": 0, "directional": 0, "unquantified": 0, "total": 0, "unquantified_statements": []}
     js = {j: {"status": "skipped", "error": reason}
           for j in ["skills", "experience", "seniority", "relevancy", "impact"]}
     return {
         "overall": {
-            "overall_score": 0.0,
+            # None, not 0.0: "could not be scored" must never look like "scored zero".
+            "overall_score": None,
+            "status": "not_scored",
             "weights_used": DEFAULT_WEIGHTS,
             "skills_gate_applied": False,
             "low_fit_cap_applied": False,
-            "component_scores": {"skills": 0.0, "experience": 0.0, "seniority": 0.0, "relevancy": 0.0, "impact": 0.0},
+            "component_scores": {},
             "judge_statuses": js,
             "quorum_met": False,
-            "early_exit": "ats_formatting",
+            "early_exit": "unreadable_text",
             "early_exit_reason": reason,
         },
-        "skills":     {"analyser_result": skipped, "scores": z_sk,  "extracted_chunks": {}},
-        "experience": {"analyser_result": skipped, "scores": z_ex},
-        "seniority":  {"analyser_result": skipped, "scores": z_sr},
-        "relevancy":  {"analyser_result": skipped, "scores": z_rel},
-        "impact":     {"analyser_result": skipped, "scores": z_imp},
+        "skills":     {"analyser_result": skipped, "scores": {}, "extracted_chunks": {}},
+        "experience": {"analyser_result": skipped, "scores": {}},
+        "seniority":  {"analyser_result": skipped, "scores": {}},
+        "relevancy":  {"analyser_result": skipped, "scores": {}},
+        "impact":     {"analyser_result": skipped, "scores": {}},
         "coach":      {**skipped, "data": {}},
     }
+
+
+def pipeline_status(overall: dict) -> str:
+    """complete | degraded | insufficient | not_scored  (single source of truth)."""
+    if overall.get("status") == "not_scored" or overall.get("overall_score") is None:
+        return "not_scored"
+    if not overall.get("quorum_met", False):
+        return "insufficient"
+    statuses = overall.get("judge_statuses", {})
+    if any(v.get("status") in ("failed", "timeout") for v in statuses.values()):
+        return "degraded"
+    return "complete"
 
 
 def _renormalized_weights_for_successes(base_weights: dict, judge_statuses: dict) -> dict:
@@ -252,8 +291,11 @@ async def _run_arbitration(
     scores: dict,
     results: dict,
     statuses: dict,
+    score_fns: dict | None = None,
 ) -> None:
-    """Re-run flagged judges in sequence; updates scores/results/statuses in-place."""
+    """Re-run flagged judges in sequence; updates scores/results/statuses in-place.
+    `score_fns` MUST be the same scorers used in stage 1 (e.g. the frequency-weighted
+    skills scorer) so first-pass and arbitrated scores are comparable."""
     from analysers.skills.analyser     import score as skills_score
     from analysers.experience.analyser import score as experience_score
     from analysers.seniority.analyser  import score as seniority_score
@@ -262,6 +304,7 @@ async def _run_arbitration(
         "skills": skills_score,
         "experience": experience_score,
         "seniority": seniority_score,
+        **(score_fns or {}),
     }
 
     seen = set()
@@ -294,7 +337,9 @@ async def _run_arbitration(
             results[judge]  = new_raw
             scores[judge]   = new_scores
             statuses[judge] = {"status": new_status, "error": new_err, "elapsed_ms": new_ms,
-                               "arbitrated": True, "contradiction_trigger": c["name"]}
+                               "arbitrated": True, "contradiction_trigger": c["name"],
+                               "score_before_arbitration": old_score,
+                               "score_after_arbitration": new_score}
         else:
             logger.warning("Arbitration re-run %s failed (%s) — keeping original result", judge, new_err)
 
@@ -327,18 +372,43 @@ class AnalyserEngine:
         fast_model: str = "",
         ats_score: float | None = None,
         semantic_similarity: float | None = None,
+        user_id: str | None = None,
+        progress=None,
     ) -> dict:
+        """`progress`, if given, is a plain callable(dict) invoked with UI events
+        (judge_start / judge / arbitration / coach_start). It must not block."""
+        def _emit(ev: dict) -> None:
+            if progress is not None:
+                try:
+                    progress(ev)
+                except Exception:
+                    logger.exception("progress callback failed")
+        _t_start = time.monotonic()
+
         logger.info("=" * 60)
         logger.info("AnalyserEngine.run  model=%s fast=%s", llm_model, fast_model or "none")
         logger.info("=" * 60)
 
-        # Fix 3a: ATS early exit — resume formatting too broken for LLM scoring to be useful
+        # Defence in depth: whatever the caller did, judges only ever see normalised text
+        # with instruction-like spans neutralised (idempotent if already prepared).
+        from analysers.base import prepare_user_text
+        resume_text, _rflags = prepare_user_text(resume_text, "resume")
+        job_description, _jflags = prepare_user_text(job_description, "job_description")
+        security_flags = _rflags + _jflags
+
+        # Fix 3a: skip all LLM judges only when the extracted text is genuinely unreadable.
+        # (Previously ANY resume with a heuristic ATS score < 40 got overall 0.0 and no LLM
+        # run - including well-formed resumes whose headings are not English: a clean Spanish
+        # resume scored exactly 40.0.) A low-but-readable ATS score is now just a warning.
+        ats_warning = None
         if ats_score is not None and ats_score < ATS_SKIP_THRESHOLD:
-            logger.info(
-                "ATS early exit: score=%.0f < threshold=%.0f — skipping all LLM judges",
-                ats_score, ATS_SKIP_THRESHOLD,
-            )
-            return _ats_early_exit(ats_score)
+            if _text_unreadable(resume_text):
+                logger.info("Unreadable text + ATS %.0f < %.0f - not scoring", ats_score, ATS_SKIP_THRESHOLD)
+                out = _ats_early_exit(ats_score)
+                out["overall"]["security_flags"] = security_flags
+                return out
+            ats_warning = (f"ATS formatting score {ats_score:.0f}/100 is low; text is readable so "
+                           "scoring proceeded. ATS heuristics are English-centric.")
 
         from analysers.skills.analyser     import score as _skills_score_base
         from analysers.experience.analyser import score as experience_score
@@ -349,10 +419,11 @@ class AnalyserEngine:
         # Fetch market skill frequencies once — used to enrich missing_skills with demand signal
         try:
             import db as run_db
-            _freq = await asyncio.to_thread(run_db.get_skill_frequencies)
+            _freq, _n_jobs = await asyncio.to_thread(run_db.get_skill_demand, user_id)
         except Exception:
-            _freq = {}
-        skills_score = lambda data: _skills_score_base(data, skill_frequencies=_freq or None)
+            _freq, _n_jobs = {}, 0
+        skills_score = lambda data: _skills_score_base(
+            data, skill_frequencies=_freq or None, total_jobs=_n_jobs or None)
 
         # Fix 3b: Domain mismatch — skip seniority + relevancy when SBERT sim is near-zero
         skip_judges: set[str] = set()
@@ -374,6 +445,18 @@ class AnalyserEngine:
         skip_reason_sr = f"skipped: similarity={semantic_similarity:.3f} < {SIMILARITY_MISMATCH_THRESHOLD}" if "seniority" in skip_judges else ""
         skip_reason_rl = f"skipped: similarity={semantic_similarity:.3f} < {SIMILARITY_MISMATCH_THRESHOLD}" if "relevancy" in skip_judges else ""
 
+        def _judge_done(name, status, _raw, scores, _err, ms):
+            _emit({"event": "judge", "judge": name,
+                   "score": round(scores.get("score", 0) * 100, 1) if status == "success" else 0,
+                   "success": status == "success", "status": status,
+                   "elapsed_s": round(ms / 1000, 1),
+                   "pipeline_elapsed_s": round(time.monotonic() - _t_start, 1)})
+
+        for _j in ("skills", "experience", "seniority", "relevancy", "impact"):
+            if _j not in skip_judges:
+                _emit({"event": "judge_start", "judge": _j,
+                       "elapsed_s": round(time.monotonic() - _t_start, 1)})
+
         # Stage 1: 5 independent judges, each with a hard per-judge timeout.
         # _run_judge_timed never raises — returns structured (status, raw, scores, err).
         # Skipped judges use _skipped_judge() which returns immediately with status="skipped".
@@ -382,13 +465,13 @@ class AnalyserEngine:
         (sr_status, seniority_res, sr_sc, sr_err, sr_ms), \
         (rl_status, relevancy_res, rl_sc, rl_err, rl_ms), \
         (im_status, impact_res,    im_sc, im_err, im_ms)  = await asyncio.gather(
-            _run_judge_timed("skills",     self.skills.run(resume_text, job_description, skills_taxonomy=skills_taxonomy, llm_model=_model("skills"), **kw_base), skills_score),
-            _run_judge_timed("experience", self.experience.run(resume_text, job_description, llm_model=_model("experience"), **kw_base), experience_score),
+            _run_judge_timed("skills",     self.skills.run(resume_text, job_description, skills_taxonomy=skills_taxonomy, llm_model=_model("skills"), **kw_base), skills_score, _judge_done),
+            _run_judge_timed("experience", self.experience.run(resume_text, job_description, llm_model=_model("experience"), **kw_base), experience_score, _judge_done),
             _skipped_judge("seniority", skip_reason_sr) if "seniority" in skip_judges else
-            _run_judge_timed("seniority",  self.seniority.run(resume_text, job_description, llm_model=_model("seniority"), **kw_base), seniority_score),
+            _run_judge_timed("seniority",  self.seniority.run(resume_text, job_description, llm_model=_model("seniority"), **kw_base), seniority_score, _judge_done),
             _skipped_judge("relevancy", skip_reason_rl) if "relevancy" in skip_judges else
-            _run_judge_timed("relevancy",  self.relevancy.run(resume_text, job_description, llm_model=_model("relevancy"), **kw_base), relevancy_score),
-            _run_judge_timed("impact",     self.impact.run(resume_text, job_description, llm_model=_model("impact"), **kw_base), impact_score),
+            _run_judge_timed("relevancy",  self.relevancy.run(resume_text, job_description, llm_model=_model("relevancy"), **kw_base), relevancy_score, _judge_done),
+            _run_judge_timed("impact",     self.impact.run(resume_text, job_description, llm_model=_model("impact"), **kw_base), impact_score, _judge_done),
         )
 
         judge_statuses = {
@@ -411,9 +494,12 @@ class AnalyserEngine:
         contradictions = _detect_contradictions(score_map, judge_statuses)
         if contradictions:
             logger.info("Arbitration triggered: %s", [c["name"] for c in contradictions])
+            _emit({"event": "tick", "stage": "arbitration",
+                   "elapsed_s": round(time.monotonic() - _t_start, 1)})
             await _run_arbitration(
                 contradictions, self, resume_text, job_description, skills_taxonomy,
                 llm_model, kw_base, score_map, result_map, judge_statuses,
+                score_fns={"skills": skills_score},
             )
             # Unpack potentially updated values
             s_sc  = score_map["skills"];   skills_res    = result_map["skills"]
@@ -451,17 +537,24 @@ class AnalyserEngine:
 
         # Stage 3: Coach receives None for any dimension whose judge failed or was skipped.
         # None ≠ empty list — the Coach prompt treats None as "data unavailable".
-        coach_res = await self.coach.run(
-            resume_text=resume_text,
-            job_description=job_description,
-            missing_skills=            _gap_or_none(sk_status, s_sc,  "missing_skills"),
-            unmet_responsibilities=    _gap_or_none(ex_status, e_sc,  "unmet_responsibilities"),
-            absent_seniority_signals=  _gap_or_none(sr_status, sr_sc, "absent_signals"),
-            irrelevant_statements=     _gap_or_none(rl_status, rl_sc, "irrelevant_statements"),
-            unquantified_statements=   _gap_or_none(im_status, im_sc, "unquantified_statements"),
-            llm_model=llm_model,
-            **kw_base,
-        )
+        quorum_ok = succeeded >= min(JUDGE_QUORUM, active)
+        if quorum_ok:
+            _emit({"event": "coach_start", "elapsed_s": round(time.monotonic() - _t_start, 1)})
+            coach_res = await self.coach.run(
+                resume_text=resume_text,
+                job_description=job_description,
+                missing_skills=            _gap_or_none(sk_status, s_sc,  "missing_skills"),
+                unmet_responsibilities=    _gap_or_none(ex_status, e_sc,  "unmet_responsibilities"),
+                absent_seniority_signals=  _gap_or_none(sr_status, sr_sc, "absent_signals"),
+                irrelevant_statements=     _gap_or_none(rl_status, rl_sc, "irrelevant_statements"),
+                unquantified_statements=   _gap_or_none(im_status, im_sc, "unquantified_statements"),
+                llm_model=llm_model,
+                **kw_base,
+            )
+        else:
+            # No score will be shown, so do not spend a 20-40s LLM call on advice.
+            coach_res = {"success": False, "skipped": True, "data": {},
+                         "error": "coach skipped: judge quorum not met"}
 
         # Stage 4: Overall score — gate only applies when skills judge actually succeeded.
         # Skipped judges are excluded from weights the same way failed judges are.
@@ -472,7 +565,12 @@ class AnalyserEngine:
         overall["base_weights"] = base_weights
         overall["weights_adjusted_for_failed_judges"] = effective_weights != base_weights
         overall["judge_statuses"] = judge_statuses
-        overall["quorum_met"] = succeeded >= min(JUDGE_QUORUM, active)
+        overall["quorum_met"] = quorum_ok
+        overall["security_flags"] = security_flags
+        if ats_warning:
+            overall["ats_warning"] = ats_warning
+        overall["pipeline_version"] = PIPELINE_VERSION
+        overall["status"] = pipeline_status(overall)
         if skip_judges:
             overall["skipped_judges"] = sorted(skip_judges)
             overall["skip_reason"] = f"semantic_similarity={semantic_similarity:.3f} below threshold"
